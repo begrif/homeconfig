@@ -1,0 +1,53 @@
+vagrant global-status			-- list all instances
+
+vagrant destroy ID			-- take down instance ID
+
+# commands that read/write files in cwd:
+
+vagrant init IMAGE			-- create VM from image
+					VM info saved to file
+
+vagrant up				-- start VM running
+					VM selected from file
+
+vagrant ssh				-- ssh in to VM
+					VM selected from file
+
+vagrant ssh ID				-- ssh in to VM
+
+vagrant destroy				-- clean up VM
+					VM selected from file
+
+# Using vagrant with test kitchen
+
+kitchen init --driver=kitchen-vagrant	-- add VM to chef instance
+					(first time: installs stuff)
+
+kitchen init 				-- add VM to chef instance
+					(additional times)
+
+kitchen create system			-- build a VM to test with
+					eg system = default-ubuntu-1404
+					check .kitchen.yml if system unknown
+
+kitchen converge system			-- test chef recipe on system
+					   recipe to test is named in
+					   .kitchen.yml
+
+kitchen list				-- show systems and status
+
+kitchen destroy system			-- destroy the vagrant VM for system
+
+# typical flow
+kitchen init
+kitchen create default-ubuntu-1404
+vagrant global-status
+vagrant ssh INSTANCEID
+	sudo apt-get update
+	exit
+kitchen converge default-ubuntu-1404
+vagrant ssh INSTANCEID
+	: examine system
+	exit
+kitchen destroy default-ubuntu-1404
+

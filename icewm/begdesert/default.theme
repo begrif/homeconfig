@@ -1,0 +1,88 @@
+
+ThemeDescription="Trim Desert style theme."
+ThemeAuthor="Benjamin Elijah Griffin based on icedesert by Nehal Mistry"
+RolloverButtonsSupported=1
+Look=pixmap
+TitleBarHeight=10
+BorderSizeX=2
+BorderSizeY=2
+DlgBorderSizeX=1
+DlgBorderSizeY=1
+
+# x=close, m=max, i=min, h=hide, r=rollup, s=sysmenu, d=depth
+TitleButtonsSupported="xmirs"
+# left to right
+TitleButtonsLeft="sxim"
+# right to left
+TitleButtonsRight="r"
+
+ColorNormalBorder="rgb:c2/c2/c2"
+ColorActiveBorder="rgb:c1/b9/af"
+ColorNormalButton="rgb:dc/d9/d9"
+ColorNormalTitleBarText="rgb:00/00/00"
+ColorActiveTitleBarText="rgb:00/00/00"
+ColorNormalMenu="rgb:dc/d9/d9"
+ColorActiveMenuItem="rgb:c1/b9/af"
+ColorNormalMenuItemText="rgb:00/00/00"
+ColorActiveMenuItemText="rgb:00/00/00"
+ColorDisabledMenuItemText="rgb:80/80/80"
+ColorMoveSizeStatus="rgb:dc/d9/d9"
+ColorMoveSizeStatusText="rgb:00/00/00"
+ColorDefaultTaskBar="rgb:dc/d9/d9"
+ColorNormalTaskBarApp="rgb:dc/d9/d9"
+ColorNormalTaskBarAppText="rgb:00/00/00"
+ColorActiveTaskBarApp="rgb:c1/b9/af"
+ColorActiveTaskBarAppText="rgb:00/00/00"
+ColorMinimizedTaskBarApp="rgb:c1/b9/af"
+ColorQuickSwitch="rgb:dc/d9/d9"
+ColorQuickSwitchActive="rgb:c1/b9/af"
+ColorNormalButton="rgb:dc/d9/d9"
+ColorActiveButton="rgb:c1/b9/af"
+ColorListBox="rgb:dc/d9/d9"
+ColorListBoxSelection="rgb:c1/b9/af"
+ColorScrollBar="rgb:dc/d9/d9"
+ColorScrollBarSlider="rgb:c1/b9/af"
+ColorScrollBarButton="rgb:c1/b9/af"
+ColorDialog="rgb:dc/d9/d9"
+ColorToolTip="rgb:dc/d9/d9"
+DesktopBackgroundColor="rgb:50/50/78"
+ColorLabel="rgb:dc/d9/d9"
+
+ColorClock="rgb:18/18/38"
+ColorClockText="rgb:ef/d0/97"
+
+ColorApm="rgb:18/18/38"
+ColorApmText="rgb:ef/d0/97"
+
+ColorCPUStatusIdle="rgb:18/18/38"
+ColorNetIdle="rgb:18/18/38"
+
+# :r! grep Font ../Infadel2/default.theme
+# Font Specification
+TitleFontNameXft	   = "sans-serif:size=8"
+MenuFontNameXft	           = "sans-serif:size=8"
+MinimizedWindowFontNameXft = "sans-serif:size=8"
+ActiveButtonFontNameXft    = "sans-serif:size=8:bold"
+NormalButtonFontNameXft    = "sans-serif:size=8"
+QuickSwitchFontNameXft     = "sans-serif:size=8"
+ListBoxFontNameXft         = "sans-serif:size=8"
+StatusFontNameXft          = "sans-serif:size=8"
+ToolTipFontNameXft         = "sans-serif:size=8"
+ActiveTaskBarFontNameXft   = "sans-serif:size=8:bold"
+NormalTaskBarFontNameXft   = "sans-serif:size=8"
+ClockFontNameXft           = "sans-serif:size=14:bold"
+
+#ApmFontNameXft          = "lucida:size=14:bold,sans-serif:size=14:bold"
+#TitleFontName		= "-artwiz-snap-regular-r-normal-sans-10-*-*-*-*-*-*-*"
+#MenuFontName		= "-artwiz-snap-regular-r-normal-sans-10-*-*-*-*-*-*-*"
+#MinimizedWindowFontName	= "-artwiz-snap-regular-r-normal-sans-10-*-*-*-*-*-*-*"
+#ActiveButtonFontName	= "-artwiz-snap-regular-r-normal-sans-10-*-*-*-*-*-*-*"
+#NormalButtonFontName	= "-artwiz-snap-regular-r-normal-sans-10-*-*-*-*-*-*-*"
+#QuickSwitchFontName	= "-artwiz-snap-regular-r-normal-sans-10-*-*-*-*-*-*-*"
+#ListBoxFontName		= "-artwiz-snap-regular-r-normal-sans-10-*-*-*-*-*-*-*"
+#StatusFontName		= "-artwiz-snap-regular-r-normal-sans-10-*-*-*-*-*-*-*"
+#ToolTipFontName		= "-artwiz-snap-regular-r-normal-sans-10-*-*-*-*-*-*-*"
+#ActiveTaskBarFontName	= "-artwiz-snap-regular-r-normal-sans-10-*-*-*-*-*-*-*"
+#NormalTaskBarFontName	= "-artwiz-snap-regular-r-normal-sans-10-*-*-*-*-*-*-*"
+#ClockFontName		= "-b&h-lucida-bold-r-normal-sans-14-*-*-*-*-*-*-*"
+#ApmFontName		= "-b&h-lucida-bold-r-normal-sans-14-*-*-*-*-*-*-*"

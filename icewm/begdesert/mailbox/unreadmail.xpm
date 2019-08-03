@@ -1,0 +1,34 @@
+/* XPM */
+/* based on xbiff's mail-up image */
+static char *noname[] = {
+/* width height ncolors chars_per_pixel */
+"16 16 10 1",
+/* colors */
+"  c gray11",
+". c gray55",
+"X c gray44",
+"o c gray33",
+"O c gray89",
+"+ c gray78",
+"@ c gray67",
+"# c gray100",
+"$ c gray95",
+"% c gray22",
+/* pixels */
+"#########o+++###",
+"#######@@++@O###",
+"######@% X$O$###",
+"#####@%  X+.####",
+"####+++@ X$@####",
+"###.X  o.++X####",
+"###+ .. O++X####",
+"   +    +X@X    ",
+"XX%+O.@X+  XoXXX",
+"   +.o.X+ XX    ",
+"X.X+    +X..@.@X",
+"X@XO++++$+.@.@.X",
+"X.@XXX.X X@.@.@X",
+"X@.@.@.X X.@.@.X",
+"X.@.@.@X%.@.@.@X",
+"oXXXXXXXXXXXXXX%"
+};

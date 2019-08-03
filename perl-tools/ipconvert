@@ -1,0 +1,86 @@
+#!/usr/bin/perl
+# ipconvert convert IPv4 from various formats to int and cannonical quad
+#
+# Example usage:
+# Show these forms are all equivalent:
+#     ipconvert 1.1.1.1 0x1010101 0100200401 0x1.01.01.0x1 1.1.257
+#       16843009 ... 1.1.1.1         (from 1.1.1.1)
+#       16843009 ... 1.1.1.1         (from 0x1010101)
+#       16843009 ... 1.1.1.1         (from 0100200401)
+#       16843009 ... 1.1.1.1         (from 0x1.01.01.0x1)
+#       16843009 ... 1.1.1.1         (from 1.1.257)
+#
+# Missing digits? No problem, last number is /not/ second or third number.
+#     ipconvert 127.1 012.0x14.1
+#     2130706433 ... 127.0.0.1       (from 127.1)
+#      169082881 ... 10.20.0.1       (from 012.0x14.1)
+#
+# Decimal integer forms used for IPv4 in some databases
+#     ipconvert 169088000 4294966784 169088511
+#      169088000 ... 10.20.20.0      (from 169088000)
+#     4294966784 ... 255.255.254.0   (from 4294966784)
+#      169088511 ... 10.20.21.255    (from 169088511)
+#
+# Cannonical form should always match what the Unix resolver would do,
+# (for valid resolver input) or it's a bug. An easy way to test what
+# the resolver does is with ping:
+#
+#       $ ping 1.1.257
+#       PING one.one.one.one (1.1.1.1) 56(84) bytes of data.
+#
+# 15 Jan 2019
+
+use warnings;
+use strict;
+
+my $addr;
+my $ip;
+my $in;
+
+sub raw_to_ip {
+  my $r = shift;
+  my $h = sprintf("%08x", $r);
+  $h =~ s/(..)/hex($1) . '.'/eg;
+  chop($h);
+  $h;
+}
+
+sub ip_to_raw {
+  my $i = shift;
+  my $t = 0;
+  while( $i =~ s/^(\d+)(?:[.]|$)// ) { $t = $1 + ($t*256); }
+  $t;
+}
+while ( defined ( $in = shift )) {
+  my $use = $in;
+
+  # hex to dec pass, here 0x1.01.01.0x1 becomes 1.01.01.1
+  while( $use =~ s/\b0x([0-9a-f]+)\b/hex($1)/e ) {1;}
+
+  # oct to dec pass, here 1.01.01.1 becomes 1.1.1.1
+  while( $use =~ s/\b0([0-7]+)\b/oct($1)/e ) {1;}
+
+  if ( $use =~ /^\d+$/ ) {
+    # no periods, started with raw
+    $ip = raw_to_ip ( $use );
+    $addr = $use;
+  } elsif ( $use =~ /^\d[.\d]+\d$/ and $use !~ /\.\.|\.\d+\.\d+\.\d+\./ ) {
+    # ip-ish
+
+    # 127.1 -> 127.0.0.1
+    $use =~ s/^(\d+)\.(\d+)$/$1.0.0.$2/;
+
+    # 10.20.1 -> 10.20.0.1
+    $use =~ s/^(\d+)\.(\d+)\.(\d+)$/$1.$2.0.$3/;
+
+    # first find integer form
+    $addr = ip_to_raw ( $use );
+    # than create cannonical from that
+    $ip = raw_to_ip ( $addr );
+  } else {
+    print qq(---> "$in"?  What's with that?\n);
+    next;
+  }
+
+  printf("%10d ... %-15s (from %s)\n", $addr, $ip, $in);
+}

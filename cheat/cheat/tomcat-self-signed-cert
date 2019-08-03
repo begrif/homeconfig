@@ -1,0 +1,47 @@
+CREATE AUTHORITY KEY --------------------------------------------------------
+
+  export JAVA_HOME=/usr/jdk/instances/jdk1.5.0
+  echo JAVA_HOME=$JAVA_HOME
+
+  cacerts=$JAVA_HOME/jre/lib/security/cacerts
+
+  # make authority key
+  openssl req -new -newkey rsa:1024 -nodes -out authority.csr -keyout authority.key
+
+  # self-sign key
+  openssl x509 -trustout -signkey authority.key -days 1000 -req -in authority.csr -out authority.pem
+
+  echo "add this key to main keystore 'cacerts' (as root, default keystore password 'changeit')"
+  echo keytool -import -keystore $cacerts -file authority.pem -alias lighthouse_authority
+
+  # certificate authority serial number
+  echo 02 > authority.srl
+
+
+CREATE AND SIGN SERVER KEY --------------------------------------------------
+
+  # used password 'seefar' on this key
+
+  keytool -genkey -alias tomcat -keyalg RSA -keysize 1024 -keystore server.ks -storetype JKS
+
+  # create server signing request
+  keytool -certreq -keyalg RSA -alias tomcat -file lighthouse.csr -keystore server.ks
+
+  # sign cert
+  openssl x509 -CA authority.pem -CAkey authority.key -CAserial authority.srl -req -in lighthouse.csr -out lighthouse.crt -days 1000
+
+  # put signed cert into keystore
+  keytool -import -alias tomcat -keystore server.ks -trustcacerts -file lighthouse.crt
+
+CONFIGURE TOMCAT ------------------------------------------------------------
+
+in conf/server.xml
+
+# comment out port 8080 connector, add 443 connector
+
+    <Connector port="443" protocol="HTTP/1.1" SSLEnabled="true"
+               maxThreads="150" scheme="https" secure="true"
+               clientAuth="false" sslProtocol="TLS"
+               keystoreFile="conf/server.ks" keypass="seefar"
+               />
+

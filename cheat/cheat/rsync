@@ -1,0 +1,32 @@
+rsync option groups:
+
+  -a	standard archive, does all of -rlptgoD
+
+  -urptH	'u'pdate only, 'r'ecurse, preserve 'p'erms 't'imes, 'H'ardlinks
+
+  -go	preserve 'g'roup and 'o'wner
+  -l	preserve soft links
+  -L	treat soft links like files
+  -H	preserve hard links
+  -D	preserve device files
+  -x	do not cross file systems
+  -z	compress
+  -v	increase verbosity
+  -q	make quiet
+  -n	dry run
+
+  --existing	only freshen files
+  --delete	delete files not on source side
+
+rsync arguments:
+
+  rsync [opts] server:far near		copy from far to near
+  rsync [opts] far server:near		copy from near to far
+
+  rsync [opts] foo:/src/bar /data/tmp	create and fill /data/tmp/bar with /src/bar stuff
+  rsync [opts] foo:/src/bar/ /data/tmp	fill /data/tmp with /src/bar stuff
+
+Complex example:
+  /opt/sfw/bin/rsync -avzl --rsh=ssh --rsync-path=/opt/sfw/bin/rsync \
+    --exclude '/data/logs/' --exclude '/data/*/sendoff' \
+    10.8.68.14:/data/ /data/

@@ -1,0 +1,59 @@
+#!/bin/ksh
+# waituntil YYYYMMDD HHMM [ longwaitsecs [ shortwaitsecs ] ]
+# Poor man's at(1). Put at the start of a script to delay remainder
+# until a particular date and time.
+
+# targetdate=20091024
+# targettime=0200
+long=3600       # 60 minutes, in seconds
+short=900       # 15 minutes, in seconds
+
+export TZ=US/Pacific				# ideal version
+# export TZ='PST8PDT7,M4.1.0/2,M10.5.0/2'	# no zoneinfo version
+
+usage () {
+  echo "waituntil: usage:"
+  echo "  waituntil YYYYMMDD HHMM [ longwaitsecs [ shortwaitsecs ] ]"
+  echo "Stop processing until *after* (not until) date and time."
+  echo "Longwait defaults to one hour, and is used until the day is reached."
+  echo "Shortwait defaults to a quarter hour and is used until the time is reached"
+  echo "Bug: do not specify a time less than shortwait from midnight."
+
+  exit 2;
+}
+
+case "$1" in 20??[01]???) targetdate=$1 ;;
+        *) echo "$0: First arg not in YYYYMMDD format"
+           usage ;;
+esac
+
+case "$2" in [012]?[0-5]?) targettime=$2 ;;
+        *) echo "$0: Second arg not in HHMM format"
+           usage ;;
+esac
+
+case "$3" in [1-9]*) long=$3 ;; esac
+case "$4" in [1-9]*) short=$4 ;; esac
+
+setdate () {
+  date=$(date +%Y%m%d)
+  time=$(date +%H%M)
+}
+
+setdate
+
+if expr $date \> $targetdate >/dev/null ; then
+  echo "Target date has passed: now $date, target $targetdate"
+  exit 1
+fi
+while expr $date \< $targetdate >/dev/null ; do
+  sleep $long
+  setdate
+done
+echo Reached target date
+
+while expr $time \< $targettime >/dev/null ; do
+  sleep $short
+  setdate
+done
+

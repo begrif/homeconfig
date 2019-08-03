@@ -1,0 +1,23 @@
+#!/bin/ksh
+# run nine xterms in a 3x3 grid
+
+size=80x24
+col1=+0
+col2=+499
+col3=+998
+row1=+30
+row2=+360
+row3=+690 # -60 
+
+xterm -geometry $size$col1$row1 $@ &
+xterm -geometry $size$col2$row1 $@ &
+xterm -geometry $size$col3$row1 $@ &
+xterm -geometry $size$col1$row2 $@ &
+xterm -geometry $size$col2$row2 $@ &
+xterm -geometry $size$col3$row2 $@ &
+xterm -geometry $size$col1$row3 $@ &
+xterm -geometry $size$col2$row3 $@ &
+xterm -geometry $size$col3$row3 $@ &
+
+exit
+

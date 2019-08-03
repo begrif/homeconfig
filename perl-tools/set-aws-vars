@@ -1,0 +1,54 @@
+#!/usr/bin/perl
+# usage "eval `set-aws-vars`" IF there is a 
+# $HOME/.aws/credentials file
+
+use strict;
+use warnings;
+
+die "$0: you have no home directory\n" unless defined($ENV{HOME});
+
+my $creds = $ENV{HOME} . '/.aws/credentials';
+
+die "$0: you have no credentials file\n" unless -f $creds;
+
+open(CREDS, '<', $creds) || die "$0: cannot read $creds: $!\n";
+
+my $key;
+my $secret;
+my $default;
+
+while(<CREDS>) {
+  if (/^\[default\]/) {
+    $default = 'found';
+    next;
+  }
+
+  if (/^\[[a-z0-9._-]+\]/) {
+    if($default) {
+      $default = 0; # found section, but then left it
+    }
+    next;
+  }
+
+  # in [default] section
+  if($default) {
+    if (/^\s*aws_access_key_id\s*=\s*([^'\s]+)\s/) {
+      $key = $1;
+      next;
+    }
+    if (/^\s*aws_secret_access_key\s*=\s*([^'\s]+)\s/) {
+      $secret = $1;
+      next;
+    }
+  }
+}
+close CREDS;
+
+if ($key and $secret) {
+  print "AWS_ACCESS_KEY='$key'; AWS_SECRET_KEY='$secret'\n" .
+        "export AWS_ACCESS_KEY AWS_SECRET_KEY\n";
+  exit;
+}
+
+die "$0: no [default] section found in credentials file\n" unless defined($default);
+die "$0: [default] section lacked aws_access_key_id and/or aws_secret_access_key\n";

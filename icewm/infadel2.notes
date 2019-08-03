@@ -1,0 +1,59 @@
+Infadel2/cursors
+left			normal left pointing cursor
+move			four-point compass
+right			right pointing cursor
+sizeB			bottom resize
+sizeBL			bottom-left resize
+sizeBR			bottom-right resize
+sizeL			left resize
+sizeR			right resize
+sizeT			top resize
+sizeTL			top-left resize
+sizeTR			top-right resize
+
+Infadel2/icons
+app_16x16		X11 X logo
+folder_16x16		blue circle
+folder_32x32		yellowish circle
+
+Infadel2/mailbox
+nomail			dark gray envelope
+newmail			light blue envelope
+mail			white envelope
+errmail			red envelope
+unreadmail		yellow envelope
+
+Infadel2/taskbar
+start			IceWM text on blue
+windows			three overlapping windows icon
+
+Infadel2/ (misc title bar)
+active win  inactive win
+titleAB     titleIB     - 1? pix wide
+titleAJ     titleIJ     - 3? pix wide
+titleAP     titleIP     - left side of window title inset (end cap)
+titleAM     titleIM     - right side of window title inset (end cap)
+titleAT     titleIT     - window title inset, 1 pix wide
+titleAQ     titleIQ     - 2? pix wide
+titleAR     titleIR     - 2? pix wide
+titleAS     titleIS     - 1? pix wide
+
+Infadel2/ (title bar buttons)
+active win  inactive win
+closeA      closeI      - / in circle (doubled, two high)
+depthA      depthI      - mini-yin-yang? in circle (doubled, two high)
+hideA       hideI       - quincunx in circle (doubled, two high)
+maximizeA   maximizeI   - up-triangle in circle (doubled, two high)
+menuButtonA menuButtonI - hyphen in circle (doubled, two high)
+minimizeA   minimizeI   - down-triangle in circle (doubled, two high)
+restoreA    restoreI    - up&down-triangle in circle (doubled, two high)
+rolldownA   rolldownI   - down-triangle-hyphen in circle (doubled, two high)
+rollupA     rollupI     - up-triangle-hyphen in circle (doubled, two high)
+
+In Use:
+minimize	left top corner
+rollup		top right corner, inside
+rolldown	top right corner, inside
+close		top right corner, outside
+
+

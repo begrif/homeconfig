@@ -1,0 +1,3719 @@
+#!/usr/bin/perl -w
+# Basic webpage GET tool. Much simpler than LWP GET, but not as powerful.
+# It only needs modules installed by default, however. Also emulating the
+# headers of other browsers is well supported; setting Cookie: and Referer:
+# headers is made simpler. AND this is much better at spying on headers
+# since it dumps them literally and unmodified (particularly request
+# headers), but does not follow redirects.
+#
+# 22 November 1999	Benjamin Elijah Griffin / Eli the Bearded
+use strict;
+BEGIN { $ENV{PATH} = '/usr/ucb:/bin' }
+use vars qw($EOL $url $tcpproto $nosignal $id $bv %headers $post $forcehost
+	$refer $cookie $print_request $print_body $print_heads $user $long
+	$follow $waittime $benchmark $debug $autoname $lang $dirdefault
+	$average $deviation $exitunless $head_request $urlfile $outfile
+	$count $optimize $postfile $contenttype $dechunk $addencoding
+	$prefix $correct $arbitrary $verbose
+	$INTERNAL_ERROR_CODE $VERSION $LONG_VERSION_INFO);
+use Socket;
+use Carp;
+
+$VERSION = '1.6';
+$LONG_VERSION_INFO = 'initial: 22-Nov-1999; this: 28 Jun 2013';
+$INTERNAL_ERROR_CODE = 444;
+
+$id = $0;
+$id =~ s:.*/::;
+
+eval 'use Net::SSLeay::Handle';
+if ($@) { 
+  warn "$id: Can't use Net::SSLeay::Handle; https unavailable.\n";
+}
+
+$EOL           = "\cm\cj";
+$tcpproto      = getprotobyname('tcp');
+$print_request = 0;
+$head_request  = 0;
+$print_body    = 1;
+$print_heads   = 0;
+$dechunk       = 1;
+$verbose       = 1;
+$follow        = 0;
+$correct       = 0;
+$arbitrary     = '';
+$contenttype   = 'application/x-www-form-urlencoded';
+$refer         = '';
+$cookie        = '';
+$bv            = 'lwp-request-1.38';
+$dirdefault    = 'dir-default';
+
+
+sub base64 ($);
+sub err444 ($$$);
+sub monster ($$);
+sub usage ($);
+sub saferead ();
+sub grab ($$$$$$$$$$);
+
+
+# Fun to add maybe: privoxy's "+send-vanilla-wafer" header as an option.
+# It sets a cookie on all requests:
+# Cookie: NOTICE=TO_WHOM_IT_MAY_CONCERN_Do_not_send_me_any_copyrighted_information_other_than_the_document_that_I_am_requesting_or_any_of_its_necessary_components._In_particular_do_not_send_me_any_cookies_that_are_subject_to_a_claim_of_copyright_by_anybody._Take_notice_that_I_refuse_to_be_bound_by_any_license_condition_(copyright_or_otherwise)_applying_to_any_cookie._
+# (Observed with privoxy 3.0.3)
+
+# Header sets for browser masquerading
+%headers = (
+# text mode browser for Unix
+# http://artax.karlin.mff.cuni.cz/~mikulas/links
+# Version 0.84 does not do cookies or referer headers, so we might
+# misemulate it that way.
+	'links-0.84' => <<'links084Heads',
+GET ${URI} HTTP/1.1
+Host: ${HOST}
+User-Agent: Links (0.84; Linux 2.2.5-15 i686)
+${REFERER}
+${COOKIE}
+links084Heads
+
+# Forked from links, this is another text mode browser. Quirks include
+# giving a bunch away about the system, including window size, in the
+# User-Agent: and including a 'Referer' header in URLs entered by hand.
+# http://elinks.or.cz/
+	'elinks-0.5pre4-linux' => <<'elinks05p4linHeads',
+GET ${URI} HTTP/1.1
+Host: ${HOST}
+User-Agent: ELinks (0.5pre4; Linux 2.4.2-2 i68; 80x24)
+${REFERER}
+Accept: */*
+Accept-Encoding: bzip2, gzip
+Accept-Language: en
+Connection: Keep-Alive
+${COOKIE}
+elinks05p4linHeads
+
+# command line web tool using libwww
+# http://www.w3.org/ComLine/
+	'w3c-5.2.8' => <<'w3c528Heads',
+GET ${URI} HTTP/1.1
+Accept: */*
+Accept-Encoding: *;q=0.3,deflate
+TE: trailers,deflate
+Host: ${HOST}
+User-Agent: W3C-WebCon/5.2.8 libwww/5.2.8
+${REFERER}
+${COOKIE}
+w3c528Heads
+
+# text mode browser for Unix
+# http://ei5nazha.yz.yamagata-u.ac.jp/~aito/w3m/
+	'w3m-beta99' => <<'w3mb991027Heads',
+GET ${URI} HTTP/1.0
+User-Agent: w3m/beta-991027
+Accept: text/*, image/*, audio/*, application/*
+Accept-Language: ja; q=1.0, en; q=0.5
+Host: ${HOST}
+${REFERER}
+${COOKIE}
+w3mb991027Heads
+
+# This -- much later than beta99 -- version supports showing images
+# in xterms. 
+	'w3m-img-0.5.2'	=> <<'w3m052Heads',
+GET ${URI} HTTP/1.0
+User-Agent: w3m/0.5.2
+Accept: text/html, text/*;q=0.5, image/*
+Accept-Encoding: gzip, compress, bzip, bzip2, deflate
+Accept-Language: en;q=1.0
+Host: ${HOST}
+${REFERER}
+${COOKIE}
+w3m052Heads
+
+# Fake user-agent from python script "youtube-dl" version 2012.01.08b
+# http://rg3.github.com/youtube-dl/
+	'youtube-dl-2012.01.08b'	=> <<'ytdlHeads',
+GET ${URI} HTTP/1.1
+Host: ${HOST}
+Accept-Language: en-us,en;q=0.5
+Accept-Encoding: gzip, deflate
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:5.0.1) Gecko/20100101 Firefox/5.0.1
+Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7
+Connection: close
+${REFERER}
+${COOKIE}
+ytdlHeads
+
+	 'Linux-Firefox-26.0' => <<'LinFire26Heads',
+GET ${URI} HTTP/1.1
+Host: ${HOST}
+User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:26.0) Gecko/20100101 Firefox/26.0
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Accept-Language: en
+Accept-Encoding: gzip, deflate
+DNT: 1
+Connection: keep-alive
+${REFERER}
+${COOKIE}
+LinFire26Heads
+
+# odd "ed(1)"-themed text mode-browser with javascript support
+	'edbrowse-3.4.5' => <<'edbrowse3',
+GET ${URI} HTTP/1.1
+User-Agent: edbrowse/3.4.5
+Host: ${HOST}
+Accept: */*
+${REFERER}
+${COOKIE}
+edbrowse3
+
+# netrik is a text-mode browser with an interesting sense of privacy
+	'netrik-1.16' => <<'netrik1',
+GET ${URI} HTTP/1.0
+Host: ${HOST}
+User-Agent: Not mandatory, so FUCK YOU
+Connection: Close
+${REFERER}
+${COOKIE}
+netrik1
+
+# Popular alternative browser for Windows
+	'Opera-3.60' => <<'Opera360Heads',
+GET ${URI} HTTP/1.0
+User-Agent: Mozilla/4.0 (Windows NT 4.0;US) Opera 3.60  [en]
+Accept: image/gif, image/x-xbitmap, image/jpeg, image/png, */*
+Host: ${HOST}
+${REFERER}
+${COOKIE}
+Opera360Heads
+
+	'Linux-Opera-6.11' => <<'LinOpera611Heads',
+GET ${URI} HTTP/1.1
+User-Agent: Mozilla/4.0 (compatible; MSIE 5.0; Linux 2.4.2-2 i686) Opera 6.11  [en]
+Host: ${HOST}
+Accept: text/html, image/png, image/jpeg, image/gif, image/x-xbitmap, */*
+Accept-Charset: windows-1252, utf-8;q=1.0, utf-16;q=1.0, iso-8859-1;q=0.6, *;q=0.1
+Accept-Encoding: deflate, gzip, x-gzip, identity, *;q=0
+Connection: Keep-Alive
+${REFERER}
+${COOKIE}
+LinOpera611Heads
+
+	'Windows-Opera-7beta' => <<'WinOpera7Heads',
+GET ${URI} HTTP/1.1
+User-Agent: Mozilla/4.0 (compatible; MSIE 6.0; MSIE 5.5; Windows NT 4.0) Opera 7.0  [en]
+Host: ${HOST}
+Accept: text/html, image/png, image/jpeg, image/gif, image/x-xbitmap, */*;q=0.1
+Accept-Language: en
+Accept-Charset: windows-1252, utf-8, utf-16, iso-8859-1;q=0.6, *;q=0.1
+Accept-Encoding: deflate, gzip, x-gzip, identity, *;q=0
+Connection: Keep-Alive
+${REFERER}
+${COOKIE}
+WinOpera7Heads
+
+# Captured 2005-05-09, header order lost, best guess based on Opera 7.
+	'Windows-Opera-8.0' => <<'WinOpera8Heads',
+GET ${URI} HTTP/1.1
+User-Agent: Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; en) Opera 8.0
+Host: ${HOST}
+Accept: text/html, application/xml;q=0.9, application/xhtml+xml, image/png, image/jpeg, image/gif, image/x-xbitmap, */*;q=0.1
+Accept-Language: en
+Accept-Encoding: deflate, gzip, x-gzip, identity, *;q=0
+Accept-Charset: windows-1252, utf-8, utf-16, iso-8859-1;q=0.6, *;q=0.1
+${REFERER}
+${COOKIE}
+WinOpera8Heads
+
+# Maxthon, a free windows browser, running here on Windows Vista. It
+# appears to use the native IE engine.
+	'Windows-Maxthon-2.0.6' => <<'WinMax2Heads',
+GET ${URI} HTTP/1.1
+Accept: */*
+UA-CPU: x86
+Accept-Encoding: gzip, deflate
+User-Agent: Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 6.0; SLCC1; .NET CLR 2.0.50727; .NET CLR 3.0.04506; MAXTHON 2.0)
+Host: ${HOST}
+${REFERER}
+${COOKIE}
+WinMax2Heads
+
+# CrazyBrowser, a free windows browser, running here on Windows Vista. It
+# appears to use the native IE engine.
+	'Windows-CrazyBrowser-3.0.0' => <<'WinCB3Heads',
+GET ${URI} HTTP/1.1
+Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, application/x-ms-application, application/vnd.ms-xpsdocument, application/xaml+xml, application/x-ms-xbap, application/msword, */*
+Accept-Language: en-us
+UA-CPU: x86
+Accept-Encoding: gzip, deflate
+User-Agent: Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 6.0; SLCC1; .NET CLR 2.0.50727; .NET CLR 3.0.04506; Crazy Browser 3.0.0 Beta2)
+Host: ${HOST}
+${REFERER}
+${COOKIE}
+WinCB3Heads
+
+# Avant Browser, a free windows browser, running here on Windows Vista. It
+# appears to use the native IE engine.
+	'Windows-AvantBrowser-11.21' => <<'WinAvan1121Heads',
+GET ${URI} HTTP/1.1
+Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, application/x-ms-application, application/vnd.ms-xpsdocument, application/xaml+xml, application/x-ms-xbap, application/msword, */*Accept-Language: en-us
+UA-CPU: x86
+Accept-Encoding: gzip, deflate
+User-Agent: Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 6.0; Avant Browser; SLCC1; .NET CLR 2.0.50727; .NET CLR 3.0.04506)
+Host: ${HOST}
+${REFERER}
+${COOKIE}
+WinAvan1121Heads
+
+# Windows Safari, Apple's KDE based browser, running on Windows Vista.
+	'Windows-Safari-3.0.4' => <<'WinSafari3Heads',
+GET ${URI} HTTP/1.1
+Accept-Encoding: gzip, deflate
+Accept-Language: en-US
+User-Agent: Mozilla/5.0 (Windows; U; Windows NT 6.0; en-US) AppleWebKit/523.12.9 (KHTML, like Gecko) Version/3.0 Safari/523.12.9
+Accept: text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5
+Host: ${HOST}
+${REFERER}
+${COOKIE}
+WinSafari3Heads
+
+# Windows Chrome, Google's webkit based browser, running on Windows Vista.
+	'Windows-Chrome-0.2' => <<'WinChrome02Heads',
+GET ${URI} HTTP/1.1
+User-Agent: Mozilla/5.0 (Windows; U; Windows NT 6.0; en-US) AppleWebKit/525.13 (KHTML, like Gecko) Chrome/0.2.149.30 Safari/525.13
+Accept: text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5
+Accept-Language: en-US,en
+Accept-Charset: ISO-8859-1,*,utf-8
+Accept-Encoding: gzip,deflate,bzip2
+Host: ${HOST}
+${REFERER}
+${COOKIE}
+WinChrome02Heads
+
+# ab, the apache benchmark tool.
+	'ApacheBench-1.3' => <<'AB13Heads',
+GET ${URI} HTTP/1.0
+User-Agent: ApacheBench/1.3
+Host: ${HOST}
+Accept: */*
+${REFERER}
+${COOKIE}
+AB13Heads
+
+# Amaya is the w3c's combination browser page editor.
+	'Amaya-8.1' => <<'Amaya81Heads',
+GET ${URI} HTTP/1.1
+Accept-Encoding: *,gzip
+TE: trailers,deflate
+Host: ${HOST}
+User-Agent: amaya/8.1a libwww/5.4.0
+Connection: TE,Keep-Alive
+Accept: */*;q=0.1,image/svg+xml,application/mathml+xml,application/xhtml+xml
+${REFERER}
+${COOKIE}
+Amaya81Heads
+
+# OpenOffice can edit HTML pages. It proceeds the GET with a PROPFIND,
+# however, so this doesn't truely emulate it.
+	'OpenOffice-1.0.0' => <<'OO100Heads',
+GET ${URI} HTTP/1.1
+Connection: TE
+TE: trailers
+Host: ${HOST}
+OO100Heads
+
+# Mosaic -- the one that started the rush
+	'Linux-Mosaic-2.6' => <<'LinMosaic26Heads',
+GET ${URI} HTTP/1.0
+Accept: image/x-pjpeg
+Accept: text/plain
+Accept: application/x-html
+Accept: application/html
+Accept: text/x-html
+Accept: text/html
+Accept: application/vnd.sun.xml.writer
+Accept: application/vnd.sun.xml.writer.global
+Accept: application/vnd.stardivision.writer
+Accept: application/vnd.stardivision.writer-global
+Accept: application/x-starwriter
+Accept: application/vnd.sun.xml.writer.template
+Accept: application/vnd.sun.xml.calc
+Accept: application/vnd.stardivision.calc
+Accept: application/x-starcalc
+Accept: application/vnd.sun.xml.calc.template
+Accept: application/vnd.sun.xml.impress
+Accept: application/vnd.stardivision.impress
+Accept: application/vnd.stardivision.impress-packed
+Accept: application/x-starimpress
+Accept: application/vnd.sun.xml.impress.template
+Accept: application/vnd.sun.xml.draw
+Accept: application/vnd.stardivision.draw
+Accept: application/x-stardraw
+Accept: application/vnd.sun.xml.draw.template
+Accept: application/vnd.sun.xml.math
+Accept: application/vnd.stardivision.math
+Accept: application/x-starmath
+Accept: text/html
+Accept: image/x-xwindowdump
+Accept: audio/basic
+Accept: audio/x-aiff
+Accept: image/gif
+Accept: image/jpeg
+Accept: image/tiff
+Accept: image/x-portable-anymap
+Accept: image/x-portable-bitmap
+Accept: image/x-portable-graymap
+Accept: image/x-portable-pixmap
+Accept: image/x-rgb
+Accept: image/rgb
+Accept: image/x-xbitmap
+Accept: image/x-xpixmap
+Accept: image/xwd
+Accept: image/x-xwd
+Accept: image/x-xwindowdump
+Accept: video/mpeg
+Accept: application/postscript
+Accept: application/x-dvi
+Accept: message/rfc822
+Accept: application/x-latex
+Accept: application/x-tex
+Accept: application/x-texinfo
+Accept: application/x-troff
+Accept: application/x-troff-man
+Accept: application/x-troff-me
+Accept: application/x-troff-ms
+Accept: text/richtext
+Accept: text/tab-separated-values
+Accept: text/x-setext
+Accept: */*
+User-Agent:  NCSA_Mosaic/2.6 (X11;Linux 2.4.2-2 i686)  libwww/2.12 modified
+${REFERER}
+${COOKIE}
+LinMosaic26Heads
+
+# The name 'Chimera' has been used by two different browsers. This is the
+# X11 Chimera developed at the University of Las Vegas, not the Mac Mozilla
+# derivative Chimera.
+	'X11-Chimera-1.70' => <<'XChimera170',
+GET ${URI} HTTP/1.0
+Host: ${HOST}
+User-Agent: Chimera/1.70
+Accept: */*
+${REFERER}
+${COOKIE}
+XChimera170
+
+	'ff-gcli-imgur' => <<'ff-gcli-imgur',
+GET ${URI} HTTP/1.1
+Host: ${HOST}
+User-Agent: GCLI
+Accept: */*
+Authorization: Client-ID 0df414e888d7240
+${REFERER}
+${COOKIE}
+ff-gcli-imgur
+
+# curl is a command line URL upload/download tool. It can make either
+# HTTP/1.1 (default) requests or HTTP/1.0 (when asked) requests.
+	'NetBSD-curl-7.10.4-HTTP1.1' => <<'Curl7104H11',
+GET ${URI} HTTP/1.1
+User-Agent: curl/7.10.4 (i386-unknown-netbsdelf1.5.2) libcurl/7.10.5 OpenSSL/0.9.6i zlib/1.1.4
+Host: ${HOST}
+Pragma: no-cache
+Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, */*
+${REFERER}
+${COOKIE}
+Curl7104H11
+
+	'NetBSD-curl-7.10.4-HTTP1.0' => <<'Curl7104H10',
+GET ${URI} HTTP/1.0
+User-Agent: curl/7.10.4 (i386-unknown-netbsdelf1.5.2) libcurl/7.10.5 OpenSSL/0.9.6i zlib/1.1.4
+Host: ${HOST}
+Pragma: no-cache
+Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, */*
+${REFERER}
+${COOKIE}
+Curl7104H10
+
+# httpie is a curl-like tool.
+# http://httpie.org/ https://github.com/jkbrzt/httpie/
+	'HTTPie-0.9.9' => <<'HTTPie99',
+GET ${URI} HTTP/1.1
+Accept: */*
+Accept-Encoding: gzip, deflate
+Connection: keep-alive
+Host: ${HOST}
+User-Agent: HTTPie/0.9.9
+${REFERER}
+${COOKIE}
+HTTPie99
+
+# Qweb was an early style-sheet capable browser. Too bad it didn't do
+# javascript (needed for some stylesheets) or even Host: headers.
+	'Qweb-1.3' => <<'QWeb13Heads',
+GET ${URI} HTTP/1.0
+User-Agent: QWeb/1.3
+Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, */*
+${REFERER}
+${COOKIE}
+QWeb13Heads
+
+# Jakarta http download tool
+	'Jakarta-client-3.0rc1' => <<'JK30r1Heads',
+GET ${URI} HTTP/1.1
+User-Agent: Jakarta Commons-HttpClient/3.0-rc1
+Host: ${HOST}
+${REFERER}
+${COOKIE}
+JK30r1Heads
+
+# Playstation Portable (PSP) with 2.0 firmware, header order lost.
+# First hardware device emulated!
+	'PSP-2.0' => <<'PSP20Heads',
+GET ${URI} HTTP/1.1
+Accept: */*;q=0.01
+Accept-Encoding:
+Accept-Language: en
+Host: ${HOST}
+User-Agent: Mozilla/4.0 (PSP (PlayStation Portable); 2.00)
+${REFERER}
+${COOKIE}
+PSP20Heads
+
+# My cell phone, branded as a "Virgin Snapper". Actual model is an
+# Audiovox CDM-8915, aka Audiovox Snapper.
+# Header order lost.
+# Wonder if I should leave out the Via: header....
+# Not sure if this will do referers or cookies.
+	'Audiovox-CDM8915' => <<'AudioCDM8915Heads',
+GET ${URI} HTTP/1.0
+Accept: application/vnd.phonecom.mmc-xml, application/vnd.wap.wmlc;type=4365, application/vnd.wap.wmlscriptc, application/vnd.wap.xhtml+xml, application/xhtml+xml;profile="http://www.wapforum.org/xhtml", image/bmp, image/gif, image/jpeg, image/png, image/vnd.wap.wbmp, image/x-up-wpng, multipart/mixed, multipart/related, text/plain, text/vnd.wap.wml;type=4365, audio/x-midi
+Accept-Charset: iso-8859-1,*
+Accept-Encoding: gzip, deflate
+Accept-Language: en-sp; q=1.0
+Connection: keep-alive
+Host: ${HOST}
+User-Agent: AUDIOVOX-CDM-8915 UP.Browser/6.2.2.6.h.1.102 (GUI) MMP/2.0 UP.Link/6.3.0.0.0
+Via: 1.1 vscpmag07.vmobile-corp.com:81
+x-up-devcap-accept-language: en
+x-up-devcap-charset: ISO-8859-1,US-ASCII
+x-up-devcap-iscolor: 1
+x-up-devcap-numsoftkeys: 2
+x-up-devcap-screendepth: 16
+x-up-devcap-screenpixels: 128,160
+x-up-devcap-smartdialing: 1
+x-up-subno: 7Tv-v8yGuno8q
+x-wap-profile: "http://uaprof.vmobl.com/AUDIOVOX/CDM-8915/VMU_Audiovox-CDM-8915.xml"
+${REFERER}
+${COOKIE}
+AudioCDM8915Heads
+
+# second generation iPad with native Safari
+	'iPad2-Safari-5.1' => <<'Saf51iPad',
+GET ${URI} HTTP/1.1
+Host: ${HOST}
+User-Agent: Mozilla/5.0 (iPad; CPU OS 5_1 like Mac OS X) AppleWebKit/534.46 (KHTML, like Gecko) Version/5.1 Mobile/9B176 Safari/7534.48.3
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Accept-Language: en-us
+Accept-Encoding: gzip, deflate
+Connection: keep-alive
+${REFERER}
+${COOKIE}
+Saf51iPad
+
+# HTTrack is a command line website archiver/slurper. This "Windows 98" version
+# is the 3.48-21 from the Ubuntu 16 packages
+        'HTTrack-3.48' => <<'httrack3',
+GET ${URI} HTTP/1.1
+Connection: keep-alive
+Host: ${HOST}
+User-Agent: Mozilla/4.5 (compatible; HTTrack 3.0x; Windows 98)
+Accept: text/html,image/png,image/jpeg,image/pjpeg,image/x-xbitmap,image/svg+xml,image/gif;q=0.9,*/*;q=0.1
+Accept-Language: en, *
+Accept-Encoding: gzip, identity;q=0.9
+${REFERER}
+${COOKIE}
+httrack3
+
+# Yahoo Slurp robot, captured 2005-05-06, header order lost,
+# request came from 68.142.250.170
+# Originally included "If-Modified-Since: Thu, 28 Apr 2005 21:41:29 GMT"
+	'bot-Yahoo-Slurp-2005' =>	<<'yahooHeads',
+GET ${URI} HTTP/1.0
+Accept: */*
+Accept-Encoding: gzip, x-gzip
+Host: ${HOST}
+User-Agent: Mozilla/5.0 (compatible; Yahoo! Slurp; http://help.yahoo.com/help/us/ysearch/slurp)
+yahooHeads
+
+# Google Googlebot robot, captured 2005-05-08, header order lost,
+# request came from 66.249.64.33
+	'bot-Googlebot-2005' => <<'googleHeads',
+GET ${URI} HTTP/1.0
+Accept: text/html,text/plain,application/*,*/*
+Connection: Keep-Alive
+From: googlebot(at)google.com
+Host: ${HOST}
+User-Agent: Googlebot/2.1 (+http://www.google.com/bot.html)
+googleHeads
+
+# Google Googlebot robot, captured 18 Jul 2005, header order lost,
+# request came from 66.249.66.108
+        'bot-Googlebot-2005b' => <<'googlebHeads',
+GET ${URI} HTTP/1.0
+Accept: */*
+Accept-Encoding: gzip
+Connection: keep-alive
+From: googlebot(at)googlebot.com
+Host: ${HOST}
+User-Agent: Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)
+googlebHeads
+
+# Name Protect's Aipbot robot, captured 2005-05-10, header order lost,
+# request came from 24.177.134.6
+	'bot-Aipbot-2005' => <<'aipHeads',
+GET ${URI} HTTP/1.0
+Accept-Encoding: x-gzip, gzip
+Host: ${HOST}
+User-Agent: aipbot/1.0 (aipbot; http://www.aipbot.com; aipbot@aipbot.com)
+aipHeads
+
+# Ask Jeeves' teoma robot, captured 2005-05-12, header order lost,
+# request came from 65.214.44.61
+	'bot-Askbot-2005' => <<'askHeads2005',
+GET ${URI} HTTP/1.0
+Accept: text/html, text/plain, application/x-shockwave-flash
+Accept-Encoding: gzip, deflate
+Host: ${HOST}
+User-Agent: Mozilla/2.0 (compatible; Ask Jeeves/Teoma; +http://sp.ask.com/docs/about/tech_crawling.html)
+askHeads2005
+
+# Ask Jeeves' teoma robot, captured 2007-10-18, header order lost,
+# request came from 65.214.45.119
+	'bot-Askbot-2007' => <<'askHeads2007',
+GET ${URI} HTTP/1.0
+Accept: */* 
+Accept-Encoding: gzip, deflate
+Host: ${HOST}
+User-Agent: Mozilla/5.0 (compatible; Ask Jeeves/Teoma; +http://about.ask.com/en/docs/about/webmasters.shtml)
+askHeads2007
+
+# Looksmart ZyBorg robot, captured 25 May 2005, header order lost,
+# request came from 64.242.88.10
+	'bot-ZyBorg-2005' => <<'zybHeads',
+GET ${URI} HTTP/1.0
+Accept: text/html, text/plain, application/pdf, application/msword, application/vnd.ms-powerpoint
+Host: ${HOST}
+User-Agent: Mozilla/4.0 compatible ZyBorg/1.0 (wn-14.zyborg@looksmart.net; http://www.WISEnutbot.com)
+zybHeads
+
+# Become.com becomebot robot, captured 26 May 2005, header order lost,
+# request came from 64.124.85.78. YES, this bot does do Referer: headers.
+	'bot-Become-2005' => <<'becomHeads',
+GET ${URI} HTTP/1.0
+Accept: text/*
+Accept-Encoding: gzip,deflate
+Accept-Language: en-us, en
+From: becomebot@become.com
+Host: ${HOST}
+${REFERER}
+User-Agent: Mozilla/5.0 (compatible; BecomeBot/2.3; MSIE 6.0 compatible; +http://www.become.com/site_owners.html)
+becomHeads
+
+# MSN bot robot, captured 11 Jul 2005, header order lost,
+# request came from 65.54.188.82
+	'bot-MSNbot-1-2005' => <<'msn1Heads',
+GET ${URI} HTTP/1.0
+Accept: text/html, text/plain, application/*
+Accept-Encoding: identity;q=1.0
+From: msnbot(at)microsoft.com
+Host: ${HOST}
+User-Agent: msnbot/1.0 (+http://search.msn.com/msnbot.htm)
+msn1Heads
+
+# MSN bot robot, captured 1 Jul 2006 (yes, 0.9 found after 1.0), header order lost,
+# request came from 65.55.246.53
+	'bot-MSNbot-09-2006' => <<'msn09Heads',
+GET ${URI} HTTP/1.0
+Accept: text/html, text/plain, text/xml, image/*, audio/*, video/*, application/*
+Accept-Encoding: identity;q=1.0
+From: msnbot(at)microsoft.com
+Host: ${HOST}
+User-Agent: msnbot/0.9 (+http://search.msn.com/msnbot.htm)
+msn09Heads
+
+# MSN bot robot, captured 28 Sep 2010, header order lost,
+# request came from 207.46.13.98
+	'bot-MSNbot-20-2010' => <<'msn20Heads',
+GET ${URI} HTTP/1.0
+Host: ${HOST}
+Accept: */*
+Accept-Encoding: gzip, deflate
+User-Agent: msnbot/2.0b (+http://search.msn.com/msnbot.htm)
+msn20Heads
+
+# MSN media robot, captured 28 Sep 2006, header order lost,
+# request came from 65.55.212.112
+	'bot-MSNmeda-1-2006' => <<'msnmed1Heads',
+GET ${URI} HTTP/1.0
+Accept: text/html, text/plain, text/xml, image/*, audio/*, video/*, application/*
+Accept-Encoding: identity;q=1.0
+From: msnbot(at)microsoft.com
+Host: ${HOST}
+User-Agent: msnbot-media/1.0 (+http://search.msn.com/msnbot.htm)
+msnmed1Heads
+
+# Picsearch psbot, captured  3 Aug 2005, header order lost,
+# request came from 217.212.224.143
+	'bot-Psbot-2005' => <<'psbotHeads',
+GET ${URI} HTTP/1.0
+Accept: image/gif, image/jpeg, image/png, */*
+Accept-Charset: iso-8859-1, *
+From: psbot@picsearch.com
+Host: ${HOST}
+Pragma: No-Cache
+User-Agent: psbot/0.1 (+http://www.picsearch.com/bot.html)
+psbotHeads
+
+# Gaisbot Taiwan search site robot, captured 9 Aug 2005, header order lost,
+# request came from 66.234.139.216
+	'bot-Gaisbot-2005' => <<'gaisHeads',
+GET ${URI} HTTP/1.0
+Accept: */*
+Accept-Encoding: gzip, deflate
+Host: ${HOST}
+User-Agent: Gaisbot/3.0+(robot05@gais.cs.ccu.edu.tw;+http://gais.cs.ccu.edu.tw/robot.php)
+gaisHeads
+
+# ichiro Japanese search site (goo.ne.jp) robot, captured 31 Aug 2005, header order lost,
+# request came from 210.173.180.178
+	'bot-Ichiro-2005' => <<'ichiroHeads',
+GET ${URI} HTTP/1.0
+From: ichiro@nttr.co.jp
+Host: ${HOST}
+User-Agent: ichiro/1.0 (ichiro@nttr.co.jp)
+ichiroHeads
+
+# Internet Archive ia_archiver robot, captured 11 Sep 2005, header order lost,
+# request came from 209.237.238.179
+        'bot-IA-archiver-2005' => <<'iaaHeads2005',
+GET ${URI} HTTP/1.0
+From: crawler@alexa.com
+Host: ${HOST}
+User-Agent: ia_archiver
+iaaHeads2005
+
+# Internet Archive ia_archiver robot, captured 20 Apr 2009, header order lost,
+# request came from 67.202.54.191
+        'bot-IA-archiver-2009' => <<'iaaHeads2009',
+GET ${URI} HTTP/1.0
+From: crawler@alexa.com
+Host: ${HOST}
+User-Agent: ia_archiver (+http://www.alexa.com/site/help/webmasters; crawler@alexa.com)
+iaaHeads2009
+
+
+# IBM WebFountain Crawler robot, captured 30 Sep 2005, header order lost,
+# request came from 66.147.154.3
+        'bot-IBM-crawler-2005' => <<'ibmcHeads',
+GET ${URI} HTTP/1.0
+From: crawler@us.ibm.com
+Host: ${HOST}
+User-Agent: http://www.almaden.ibm.com/cs/crawler/    [172.30.229.11]
+ibmcHeads
+
+# truveo video search robot, captured 7 Oct 2005, header order lost,
+# request came from 207.7.153.29. YES this bot does Referer: headers
+        'bot-Truveo-2005' => <<'truveoHeads',
+GET ${URI} HTTP/1.0
+From: crawler@truveo.com
+Host: ${HOST}
+${REFERER}
+User-Agent: Mozilla/5.0 (compatible; heritrix/1.4t +http://www.truveo.com/)
+truveoHeads
+
+# sohu agent (Chinese sohu.com search site) robot, captured 1 Nov 2005, header order lost,
+# request came from 220.181.26.106
+	'bot-Sohu-2005' => <<'sohuHeads',
+GET ${URI} HTTP/1.0
+Accept: text/html
+Host: ${HOST}
+User-Agent: sohu agent
+sohuHeads
+
+# voyager agent (www.kosmix.com search site) robot, captured 20 Apr 2006, header order lost,
+# request came from 38.113.234.181
+	'bot-voyager-2006' => <<'voyagHeads',
+GET ${URI} HTTP/1.0
+Accept: */*
+From: "crawler@kosmix.com (http://www.kosmix.com/crawler.html)"
+Host: ${HOST}
+User-Agent: voyager/1.0
+voyagHeads
+
+# dcbot (Norwegian www.boitho.com search site) robot, captured 17 May 2006, header order lost,
+# request came from 129.241.104.180
+	'bot-dcbot-2006' => <<'dcHeads',
+GET ${URI} HTTP/1.0
+Accept: text/html
+Accept-Language: en
+Host: ${HOST}
+User-Agent: boitho.com-dc/0.81 ( http://www.boitho.com/dcbot.html )
+dcHeads
+
+# ConveraCrawler () robot, captured 17 Jun 2006, header order lost,
+# request came from 63.241.61.7. Verified to do cookies.
+	'bot-convera-2006' => <<'converaHeads',
+GET ${URI} HTTP/1.0
+Accept: text/html, text/plain, application/pdf, */*
+Connection: keep-alive
+${COOKIE}
+From: crawler(at)convera.com
+Host: ${HOST}
+User-Agent: ConveraCrawler/0.9d (+http://www.authoritativeweb.com/crawl)
+converaHeads
+
+# VoilaBot (viola.com) robot, captured 26 Jan 2007, header order lost,
+# request came from 81.52.143.16
+	'bot-VoilaBot-2007' => <<'violaHeads',
+GET ${URI} HTTP/1.0
+Accept: */*
+Accept-Charset: windows-1252;q=1.0, utf-8;q=1.0, utf-16;q=1.0, iso-8859-1;q=0.6, *;q=0.1
+Accept-Encoding: gzip, identity, *;q=0
+Accept-Language: fr, en, *
+Connection: keep-alive
+Host: ${HOST}
+User-Agent: Mozilla/4.0 (compatible; MSIE 5.0; Windows 95) VoilaBot BETA 1.2 (http://www.voila.com/)
+violaHeads
+
+# TMCrawler () robot, captured 4 Feb 2007, header order lost,
+# request came from 128.241.20.199
+	'bot-TMCrawler-2007' => <<'tmcrawlHeads',
+GET ${URI} HTTP/1.0
+Accept: */*
+Accept-Language: en-us
+Connection: keep-alive
+Host: ${HOST}
+User-Agent: TMCrawler
+tmcrawlHeads
+
+
+# Ichiro (Japanese search site?) robot, captured 4 Feb 2007, header order lost,
+# request came from 210.150.10.72
+	'bot-Ichiro-2007' => <<'ichiroHeads',
+GET ${URI} HTTP/1.0
+Connection: keep-alive
+From: ichiro@nttr.co.jp
+Host: ${HOST}
+User-Agent: ichiro/2.0 (http://help.goo.ne.jp/door/crawler.html)
+ichiroHeads
+
+# Become.com becomebot robot, captured 9 Feb 2007, header order lost,
+# request came from 64.124.85.77. Earlier versions of this bot have
+# used Referer: headers. Not confirmed if this version still does that.
+	'bot-Become-2007' => <<'becom7Heads',
+GET ${URI} HTTP/1.0
+Accept: text/html;q=0.9,text/plain;q=0.7,*/*;q=0.3
+Accept-Encoding: gzip,deflate
+Accept-Language: [en-us, en, ko-kr, kr, ko, ja, jp, cn]
+Connection: keep-alive
+From: becomebot@become.com
+Host: ${HOST}
+User-Agent: Mozilla/5.0 (compatible; BecomeBot/3.0; +http://www.become.com/site_owners.html)
+${REFERER}
+becom7Heads
+
+# IRLbot (research project) robot, captured 7 Apr 2007, header order lost,
+# request came from 128.194.135.94.
+	'bot-IRLbot-2007' => <<'IRLbotHeads',
+GET ${URI} HTTP/1.0
+Accept: text/html
+Accept-Encoding: gzip, deflate
+Connection: keep-alive
+Host: ${HOST}
+User-Agent: IRLbot/3.0 (compatible; MSIE 6.0; http://irl.cs.tamu.edu/crawler)
+IRLbotHeads
+
+# Gigabot (gigablast.com search) robot, captured 10 May 2007, header order lost,
+# request came from 66.231.188.156
+	'bot-Gigabot-2007a' => <<'GigabotAHeads',
+GET ${URI} HTTP/1.0
+Accept: text/html, text/plain, text/xml, application/pdf, application/msword, application/vnd.ms-excel, application/mspowerpoint, application/postscript
+Accept-Language: en
+Connection: keep-alive
+Host: ${HOST}
+User-Agent: Gigabot/2.0
+GigabotAHeads
+
+# Gigabot (gigablast.com search) robot, captured 22 Jul 2007, header order lost,
+# request came from 38.114.104.152
+	'bot-Gigabot-2007b' => <<'GigabotBHeads',
+GET ${URI} HTTP/1.0
+Accept: text/html, text/plain, text/xml, application/pdf, application/msword, application/vnd.ms-excel, application/mspowerpoint, application/postscript
+Accept-Language: en
+Connection: keep-alive
+Host: ${HOST}
+User-Agent: Gigabot/3.0 (http://www.gigablast.com/spider.html)
+GigabotBHeads
+
+
+# Twiceler (cuill.com search) robot, captured 27 May 2007, header order lost,
+# request came from 38.99.13.121
+	'bot-Twiceler-2007' => <<'TwicelerHeads',
+GET ${URI} HTTP/1.0
+Accept: text/html */*
+Accept-Encoding: gzip
+Connection: keep-alive
+Host: ${HOST}
+User-Agent: Mozilla/5.0 (Twiceler-0.9 http://www.cuill.com/twiceler/robot.html)
+TwicelerHeads
+
+# Speedy Spider, crawler for entireweb.com, captured 27 Aug 2010, header
+# order lost, request came from 88.131.106.2.
+	'bot-SpeedySpider-2010' => <<'SpeedySHeads',
+GET ${URI} HTTP/1.0
+Host: ${HOST}
+User-Agent: Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US) Speedy Spider (http://www.entireweb.com/about/search_tech/speedy_spider/)
+From: speedy@entireweb.com
+Accept-Encoding: gzip,deflate
+Accept-Language: en-us;q=0.9,en;q=0.8,*;q=0.5
+Accept: text/html,text/plain,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7
+SpeedySHeads
+
+# DotBot from dotnetdotcom.org, captured 07 Jan 2009, header order lost,
+# request came from 208.115.111.248. These guys do open web crawls for
+# others to index (14gb of flat text torrent-able data as of Aug 2009).
+	'bot-DotBot-2009' => <<'DotBotHeads',
+GET ${URI} HTTP/1.0
+Host: ${HOST}
+User-Agent: Mozilla/5.0 (compatible; DotBot/1.1; http://www.dotnetdotcom.org/, crawler@dotnetdotcom.org)
+Accept: */*
+Accept-Encoding: deflate, gzip
+Accept-Charset: utf-8;q=0.7,iso-8859-1;q=0.2,*;q=0.1
+DotBotHeads
+
+# BiggerBetter, Exalead search bot, captured 01 Aug 2010, header order lost,
+# request came from 83.167.62.166. This bot sends a "Date" header with
+# the server's date and time, eg "Date: Sun, 1 Aug 2010 10:29:52 GMT",
+# but that is not emulated here.
+	'bot-BiggerBetter-2010' => <<'bBBHeads',
+GET ${URI} HTTP/1.0
+Host: ${HOST}
+Accept: */*
+Accept-Encoding: gzip, deflate, identity
+From: crawler@exabot.com
+User-Agent: Mozilla/5.0 (compatible; Exabot/3.0 (BiggerBetter); +http://www.exabot.com/go/robot)
+bBBHeads
+
+# librabot, some Microsoft bot, captured 16 Jul 2010, header order lost,
+# request came from 219.142.53.19
+	'bot-librabot-2010' => <<'libraHeads',
+GET ${URI} HTTP/1.0
+Host: ${HOST}
+User-Agent: librabot/2.0 (+http://academic.research.microsoft.com/)
+Accept: text/html, text/plain, text/xml, application/*
+Accept-Encoding: identity;q=1.0
+From: librabot@microsoft.com
+libraHeads
+
+# Yandex, captured 13 Mar 2008, header order lost,
+# request came from 77.88.27.26
+	'bot-Yandex-2008' => <<'YandexHeads',
+GET ${URI} HTTP/1.0
+Host: ${HOST}
+Accept: text/html, application/pdf;q=0.1, application/rtf;q=0.1, text/rtf;q=0.1, application/msword;q=0.1, application/x-shockwave-flash;q=0.1, application/vnd.ms-excel;q=0.1, application/vnd.ms-powerpoint;q=0.1
+Accept-Language: ru, uk;q=0.8, be;q=0.8, en;q=0.7, *;q=0.01
+From: webadmin@yandex.ru
+User-Agent: Yandex/1.01.001 (compatible; Win16; I)
+YandexHeads
+
+# worio bot, captured 13 Feb 2008, header order lost,
+# request came from 207.23.252.129
+	'bot-worio-2008' => <<'worioHeads',
+Accept-Encoding: identity
+From: crawler@worio.com
+Host: ${HOST}
+User-Agent: Mozilla/5.0 (compatible; woriobot heritrix/1.10.0 +http://worio.com)
+worioHeads
+
+# Zermelo might have been bing.com cloaked prior to launch.
+# zermelo bot, observed to use Referer and Cookie, captured 25 Mar 2008,
+# header order lost, request came from 67.202.45.136
+	'bot-zermelo-2008' => <<'zermeloHeads',
+GET ${URI} HTTP/1.0
+From: crawl@powerset.com
+Host: ${HOST}
+User-Agent: zermelo Mozilla/5.0 compatible; heritrix/1.12.1 (+http://www.powerset.com) [email:crawl@powerset.com,email:paul@page-store.com]
+${REFERER}
+${COOKIE}
+zermeloHeads
+
+# Google impersonating? Samsung handset, captured 04 Jul 2010, header order lost,
+# request came from 66.249.65.232
+	'bot-GooglbotSamsung-2010' => <<'SAMSUNG-SGH-E250Heads',
+GET ${URI} HTTP/1.0
+Accept: application/vnd.wap.xhtml+xml,application/xhtml+xml;q=0.9,text/vnd.wap.wml;q=0.8,text/html;q=0.7,*/*;q=0.6
+Host: ${HOST}
+From: googlebot(at)googlebot.com
+User-Agent: SAMSUNG-SGH-E250/1.0 Profile/MIDP-2.0 Configuration/CLDC-1.1 UP.Browser/6.2.3.3.c.1.101 (GUI) MMP/2.0 (compatible; Googlebot-Mobile/2.1; +http://www.google.com/bot.html)
+Accept-Encoding: gzip,deflate
+SAMSUNG-SGH-E250Heads
+
+# Google impersonating? N905i handset, captured 04 Jul 2010, header order lost,
+# request came from 66.249.65.98
+	'bot-GooglbotN905i-2010' => <<'DoCoMoN905iHeads',
+GET ${URI} HTTP/1.0
+Accept: text/html,*/*;q=0.9
+Host: ${HOST}
+From: googlebot(at)googlebot.com
+User-Agent: DoCoMo/2.0 N905i(c100;TB;W24H16) (compatible; Googlebot-Mobile/2.1; +http://www.google.com/bot.html)
+Accept-Encoding: gzip,deflate
+DoCoMoN905iHeads
+
+# ADD NEW BOTS HERE			grep GREP
+
+# A most basic bot observed used by some web and security research companies.
+# Actually probably multiple bots that just look alike from afar.
+	'bot-generic' => <<'GenericBotHeads',
+GET ${URI} HTTP/1.0
+Host: ${HOST}
+${REFERER}
+${COOKIE}
+GenericBotHeads
+
+# A synthetic very generic Mozilla client, designed for being inconspicuous,
+# full featured, yet with terse headers.
+# User-Agent is an observed-in-the-wild variation on the familiar.
+	'Generic-Mozilla-2010' => <<'GenericMozilla2010Heads',
+GET ${URI} HTTP/1.0
+Host: ${HOST}
+User-Agent: Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 5.1)
+Accept: */*
+Accept-Charset: utf-8;q=0.7,*;q=0.3
+Accept-Encoding: gzip,identity
+Accept-Language: en;q=0.9,*;q=0.1
+${REFERER}
+${COOKIE}
+GenericMozilla2010Heads
+
+
+
+# Lib WWW Perl module
+	'lwp-request-1.38' => <<'LWP138Heads',
+GET ${URI} HTTP/1.0
+Host: ${HOST}
+User-Agent: lwp-request/1.38
+${REFERER}
+${COOKIE}
+LWP138Heads
+
+# wget bulk downloader
+	'wget-1.6' => <<'Wget16Heads',
+GET ${URI} HTTP/1.0
+User-Agent: Wget/1.6
+Host: localhost:8181
+Accept: */*
+Wget16Heads
+
+# Junkbuster proxy; the proxy does a bunch of header editing, and
+# thus the actual headers can vary considerably from this. Consider
+# it a 'representational' version.
+	'junkbuster-2' => <<'JB2Heads',
+GET / HTTP/1.0
+User-Agent: Mozilla/3.01Gold (Macintosh; I; 68K)
+Host: ${HOST}
+Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, image/png, */*
+Accept-Encoding: gzip
+Accept-Language: en
+Accept-Charset: iso-8859-1,*,utf-8
+${REFERER}
+${COOKIE}
+JB2Heads
+
+# Once popular alternative browser for Macs
+	'iCab-pre1.7' => <<'iCabP17Heads',
+GET ${URI} HTTP/1.0
+Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, image/xbm, image/png, */*
+Accept-Language: iw
+Host: ${HOST}
+User-Agent: iCab/Pre1.7 (Macintosh; I; PPC)
+${REFERER}
+${COOKIE}
+iCabP17Heads
+
+# Lynx is a popular text mode browser, predominately unix. 2.4.2 was the
+# first version released under the GPL. 2.4.2 doesn't do Host:, but does
+# do Referer: and the optional privacy hole header From: (sent empty when
+# configured not to send the email address).
+	'Lynx-2.4.2' => <<'Lynx242Heads',
+GET ${URI} HTTP/1.0
+Accept: application/pdf
+Accept: image/x-xwindowdump
+Accept: text/html
+Accept: application/x-starmath
+Accept: application/vnd.stardivision.math
+Accept: application/vnd.sun.xml.math
+Accept: application/vnd.sun.xml.draw.template
+Accept: application/x-stardraw
+Accept: application/vnd.stardivision.draw
+Accept: application/vnd.sun.xml.draw
+Accept: application/vnd.sun.xml.impress.template
+Accept: application/x-starimpress
+Accept: application/vnd.stardivision.impress-packed
+Accept: application/vnd.stardivision.impress
+Accept: application/vnd.sun.xml.impress
+Accept: application/vnd.sun.xml.calc.template
+Accept: application/x-starcalc
+Accept: application/vnd.stardivision.calc
+Accept: application/vnd.sun.xml.calc
+Accept: application/vnd.sun.xml.writer.template
+Accept: application/x-starwriter
+Accept: application/vnd.stardivision.writer-global
+Accept: application/vnd.stardivision.writer
+Accept: application/vnd.sun.xml.writer.global
+Accept: application/vnd.sun.xml.writer
+Accept: */*
+Accept: application/x-wais-source
+Accept: application/html
+Accept: text/plain
+Accept: text/html
+Accept: www/mime
+Accept: video/mpeg
+Accept: image/jpeg
+Accept: image/x-tiff
+Accept: image/x-rgb
+Accept: image/x-xbm
+Accept: image/gif
+Accept: application/postscript
+Accept-Language: en; q=1
+Accept-Language: *; q=0.1
+User-Agent:  Lynx/2-4-2  libwww/2.14
+From:  
+${REFERER}
+Lynx242Heads
+
+	'Lynx-2.8.1' => <<'Lynx281Heads',
+GET ${URI} HTTP/1.0
+Host: ${HOST}
+Accept: text/html, text/plain, application/applefile, application/x-metamail-patch, sun-deskset-message, mail-file, default, postscript-file, audio-file, x-sun-attachment, text/enriched, text/richtext, application/andrew-inset, x-be2
+Accept: application/postscript, message/external-body, message/partial, application/pgp, application/pgp, video/mpeg, video/*, image/*, audio/mod, text/sgml, video/mpeg, image/jpeg, image/tiff, image/x-rgb, image/png, image/x-xbitmap, image/x-xbm
+Accept: image/gif, application/postscript, video/mpeg, image/jpeg, image/x-tiff, image/x-rgb, image/x-xbm, image/gif, application/postscript, */*;q=0.01
+Accept-Encoding: gzip, compress
+Accept-Language: en
+Negotiate: trans
+User-Agent: Lynx/2.8.1rel.2 libwww-FM/2.14
+${REFERER}
+${COOKIE}
+Lynx281Heads
+
+	'Lynx-2.8.5' => <<'Lynx285Heads',
+GET ${URI} HTTP/1.0
+Host: ${HOST}
+Accept: text/html, text/plain, application/vnd.sun.xml.writer, application/vnd.sun.xml.writer.global, application/vnd.stardivision.writer, application/vnd.stardivision.writer-global, application/x-starwriter, application/vnd.sun.xml.writer.template
+Accept: application/vnd.sun.xml.calc, application/vnd.stardivision.calc, application/x-starcalc, application/vnd.sun.xml.calc.template, application/vnd.sun.xml.impress, application/vnd.stardivision.impress, application/vnd.stardivision.impress-packed
+Accept: application/x-starimpress, application/vnd.sun.xml.impress.template, application/vnd.sun.xml.draw, application/vnd.stardivision.draw, application/x-stardraw, application/vnd.sun.xml.draw.template, application/vnd.sun.xml.math
+Accept: application/vnd.stardivision.math, application/x-starmath, image/x-xwindowdump, application/pdf, application/x-java-jnlp-file, text/sgml, video/mpeg, image/jpeg, image/tiff, image/x-rgb, image/png, image/x-xbitmap, image/x-xbm, image/gif
+Accept: application/postscript, */*;q=0.01
+Accept-Encoding: gzip
+Accept-Language: en
+User-Agent: Lynx/2.8.5rel.2 libwww-FM/2.14 SSL-MM/1.4.1 OpenSSL/0.9.7g
+${REFERER}
+${COOKIE}
+Lynx285Heads
+
+	'Lynx-2.8.8dev9' => <<'Lynx2889Heads',
+GET ${URI} HTTP/1.0
+Host: ${HOST}
+Accept: text/html, text/plain, text/css, text/sgml, */*;q=0.01
+Accept-Encoding: gzip, compress, bzip2
+Accept-Language: en
+User-Agent: Lynx/2.8.8dev.9 libwww-FM/2.14 SSL-MM/1.4.1 GNUTLS/2.12.14
+${REFERER}
+${COOKIE}
+Lynx2889Heads
+
+# Dillo is a Linux browser focusing on HTML correctness. It does do cookies,
+# but not by default. It does not do referer headers, so we may misemulate
+# it that way. http://www.dillo.org/
+	'Dillo-0.8.4' => <<'Dillo84Heads',
+GET ${URI} HTTP/1.0
+Host: ${HOST}
+User-Agent: Dillo/0.8.4
+Cookie2: $Version="1"
+${REFERER}
+${COOKIE}
+Dillo84Heads
+
+# Explorer 2.0 from a fresh Windows NT 4.0 install. For a while this version
+# produced funny can't load page errors from the the www.microsoft.com site.
+# As of June 2006, it will load the page, but it looks nothing like it should.
+# Note no Host: header, not sure if it supports cookies.
+	'WindowsNT-Explorer-2.0' => <<'WinNTExp20Heads',
+GET ${URI} HTTP/1.0
+Accept: image/gif, image/x-xbitmap, image/jpeg, */*
+Accept-Language: en
+User-Agent: Mozilla/1.22 (compatible; MSIE 2.0d; Windows NT)
+Connection: Keep-Alive
+${REFERER}
+${COOKIE}
+WinNTExp20Heads
+
+# Explorer 4.01 from a fresh Windows NT 4.0SP4 install.
+# As of June 2006 this version cannot run the scripts on 
+# windowsupdate.microsoft.com in order to update itself.
+	'WindowsNT-Explorer-4.01' => <<'WinNTExp401Heads',
+GET ${URI} HTTP/1.1
+Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, */*
+Accept-Language: en-us
+Accept-Encoding: gzip, deflate
+User-Agent: Mozilla/4.0 (compatible; MSIE 4.01; Windows NT)
+Host: ${HOST}
+Connection: Keep-Alive
+${REFERER}
+${COOKIE}
+WinNTExp401Heads
+
+# Explorer 5.0 can be installed with a compatibility mode that emulates
+# (or claims to emaulate) Explorer 4.0.
+	'WindowsNT-Explorer-5.0-as-4.0' => <<'WinNTExp50-40Heads',
+GET ${URI} HTTP/1.0
+Accept: */*
+Accept-Language: en-us
+Accept-Encoding: gzip, deflate
+User-Agent: Mozilla/4.0 (compatible; MSIE 4.01; Windows NT; compat; DigExt)
+Host: ${HOST}
+${REFERER}
+${COOKIE}
+WinNTExp50-40Heads
+
+# Explorer 6.0 on NT4sp6
+	'WindowsNT-Explorer-6.0' => <<'WinNTExp60Heads',
+GET ${URI} HTTP/1.1
+Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, */*
+Accept-Language: en-us
+Accept-Encoding: gzip, deflate
+User-Agent: Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 4.0)
+Host: ${HOST}
+Connection: Keep-Alive
+${REFERER}
+${COOKIE}
+WinNTExp60Heads
+
+	'Windows98-Explorer-5.5' => <<'Win98Exp55Heads',
+GET ${URI} HTTP/1.0
+Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, */*
+Accept-Language: en-us
+Accept-Encoding: gzip, deflate
+User-Agent: Mozilla/4.0 (compatible; MSIE 5.5; Windows 98)
+Host: ${HOST}
+${REFERER}
+${COOKIE}
+Win98Exp55Heads
+
+	'WindowsVista-Explorer-7.0' => <<'WinVSExp70Heads',
+GET ${URI} HTTP/1.1
+Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, application/x-ms-application, application/vnd.ms-xpsdocument, application/xaml+xml, application/x-ms-xbap, */*
+Accept-Language: en-us
+UA-CPU: x86
+Accept-Encoding: gzip, deflate
+User-Agent: Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 6.0; SLCC1; .NET CLR 2.0.50727; .NET CLR 3.0.04506)
+Host: ${HOST}
+Connection: Keep-Alive
+${REFERER}
+${COOKIE}
+WinVSExp70Heads
+
+# This is on a system with IE5.5 installed, note the reference to
+# IE4.01. This one is hard to do right, since in my tests I saw
+# two requests for the test file. The first came with this UA,
+# the second had this instead:
+# User-Agent: Mozilla/4.0 (compatible; MSIE 4.01; MSIECrawler; Windows NT)
+# The crawler version had an 'Accept-Language: us-en' as well as a
+# different order to the headers (Accept: User-Agent:, Accept-Language:
+# Accept-Encoding, Host:).
+	'WindowsNT-ActiveDesktop' => <<'WinActDeskHeads',
+GET ${URI} HTTP/1.0
+Accept: */*
+Accept-Encoding: gzip, deflate
+User-Agent: Mozilla/4.0 (compatible; MSIE 4.01; Windows NT)
+Host: ${HOST}
+${REFERER}
+${COOKIE}
+WinActDeskHeads
+
+	'WindowsNT-Netscape6' => <<'WinNTNS6Heads',
+GET ${URI} HTTP/1.0
+Host: ${HOST}
+User-Agent: Mozilla/5.0 (Windows; U; WinNT4.0; en-US; m18) Gecko/20001108 Netscape6/6.0
+Accept: */*
+Accept-Language: en
+Accept-Encoding: gzip,deflate,compress,identity
+${REFERER}
+${COOKIE}
+WinNTNS6Heads
+
+	'WindowsNT-Explorer-5.5' => <<'WinNTExp55Heads',
+GET ${URI} HTTP/1.0
+Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, */*
+Accept-Language: en-us
+Accept-Encoding: gzip, deflate
+User-Agent: Mozilla/4.0 (compatible; MSIE 5.5; Windows NT 4.0)
+Host: ${HOST}
+${REFERER}
+${COOKIE}
+WinNTExp55Heads
+
+	'Windows98-Explorer-4.0' => <<'Win98Exp40Heads',
+GET ${URI} HTTP/1.0
+Accept: */*
+Accept-Language: en-us
+Accept-Encoding: gzip, deflate
+User-Agent: Mozilla/4.0 (compatible; MSIE 4.01; Windows 98)
+Host: ${HOST}
+${REFERER}
+${COOKIE}
+Win98Exp40Heads
+
+# Normal mode Windows NT IE 5.0
+	'WindowsNT-Explorer-5.0' => <<'WinNTExp50Heads',
+GET ${URI} HTTP/1.0
+Accept: */*
+Accept-Language: en-us
+Accept-Encoding: gzip, deflate
+User-Agent: Mozilla/4.0 (compatible; MSIE 5.0; Windows NT; DigExt)
+Host: ${HOST}
+Pragma: no-cache
+${REFERER}
+${COOKIE}
+WinNTExp50Heads
+
+# IE can optional crawl pages to cache them for offline browsing.
+# This is Windows NT IE 5.01 in crawl mode.
+	'WindowsNT-ExplorerOffline-5.0' => <<'WinNTExpOff50Heads',
+GET ${URI} HTTP/1.0
+Accept: */*
+Accept-Language: en-us
+Accept-Encoding: gzip, deflate
+User-Agent: Mozilla/4.0 (compatible; MSIE 5.01; Windows NT; MSIECrawler)
+Host: ${HOST}
+Pragma: no-cache
+${REFERER}
+${COOKIE}
+WinNTExpOff50Heads
+
+# Windows ME is the next in line of the Windows 95, Windows 98 series, and
+# not even Micorsoft bothers to distinguish it from them.
+	'WindowsME-Explorer-6.0sp1' => <<'WinMEIE6sp1Heads',
+GET ${URI} HTTP/1.1
+Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, application/vnd.ms-excel, application/msword, */*
+Accept-Language: en-us
+Accept-Encoding: gzip, deflate
+User-Agent: Mozilla/4.0 (compatible; MSIE 6.0; Windows 98; Win 9x 4.90)
+Host: ${HOST}
+Connection: keep-alive
+${REFERER}
+${COOKIE}
+WinMEIE6sp1Heads
+
+	'WindowsNT-Netscape-4.6' => <<'WinNTNS46Heads',
+GET ${URI} HTTP/1.0
+User-Agent: Mozilla/4.6 [en] (WinNT; I)
+Pragma: no-cache
+Host: ${HOST}
+Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, image/png, */*
+Accept-Encoding: gzip
+Accept-Language: en
+Accept-Charset: iso-8859-1,*,utf-8
+${REFERER}
+${COOKIE}
+WinNTNS46Heads
+
+	'WindowsXP-Explorer-6' => <<'WinXPEx6Heads',
+GET ${URI} HTTP/1.1
+Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, application/vnd.ms-excel, application/msword, application/x-shockwave-flash, application/vnd.ms-powerpoint, */*
+Accept-Language: en-us
+Accept-Encoding: gzip, deflate
+User-Agent: Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1; .NET CLR 1.1.4322)
+Host: ${HOST}
+Connection: Keep-Alive
+${REFERER}
+${COOKIE}
+WinXPEx6Heads
+
+	'WindowsXP-Explorer-7' => <<'WinXPEx7Heads',
+GET ${URI} HTTP/1.1
+Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, application/vnd.ms-excel, application/msword, application/x-shockwave-flash, application/vnd.ms-powerpoint, */*
+Accept-Language: en-us
+UA-CPU: x86
+Accept-Encoding: gzip, deflate
+User-Agent: Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 5.1; .NET CLR 1.1.4322)
+Host: ${HOST}
+Connection: Keep-Alive
+${REFERER}
+${COOKIE}
+WinXPEx7Heads
+
+	'WindowsXP-Firefox2.0.0.2' => <<'WinXPFire2002Heads',
+GET ${URI} HTTP/1.1
+Host: ${HOST}
+User-Agent: Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.8.1.2) Gecko/20
+070219 Firefox/2.0.0.2
+Accept: text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5
+Accept-Language: en-us,en;q=0.5
+Accept-Encoding: gzip,deflate
+Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7
+Keep-Alive: 300
+Connection: keep-alive
+${REFERER}
+${COOKIE}
+WinXPFire2002Heads
+
+	'Linux-Firefox-3.6.13' => <<'LinuxFire3613Heads',
+GET ${URI} HTTP/1.1
+Host: ${HOST}
+User-Agent: Mozilla/5.0 (X11; U; Linux x86_64; en-US; rv:1.9.2.13) Gecko/20101203 SUSE/3.6.13-0.2.1 Firefox/3.6.13
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Accept-Language: en
+Accept-Encoding: gzip,deflate
+Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7
+Keep-Alive: 115
+Connection: keep-alive
+${REFERER}
+${COOKIE}
+LinuxFire3613Heads
+
+	'Linux-Firefox-4.0.1' => <<'LinuxFire401Heads',
+GET ${URI} HTTP/1.1
+Host: ${HOST}
+User-Agent: Mozilla/5.0 (X11; Linux i686 on x86_64; rv:2.0.1) Gecko/20100101 Firefox/4.0.1
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Accept-Language: en
+Accept-Encoding: gzip,deflate
+Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7
+Keep-Alive: 115
+Connection: keep-alive
+${REFERER}
+${COOKIE}
+LinuxFire401Heads
+
+	'Linux-Firefox-5.0.1' => <<'LinuxFire501Heads',
+GET ${URI} HTTP/1.1
+Host: ${HOST}
+User-Agent: Mozilla/5.0 (X11; Linux i686 on x86_64; rv:5.0.1) Gecko/20100101 Firefox/5.0.1
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Accept-Language: en
+Accept-Encoding: gzip,deflate
+Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7
+Connection: keep-alive
+${REFERER}
+${COOKIE}
+LinuxFire501Heads
+
+	'Linux-Firefox-6.0.2' => <<'LinuxFire602Heads',
+GET ${URI} HTTP/1.1
+Host: ${HOST}
+User-Agent: Mozilla/5.0 (X11; Linux i686 on x86_64; rv:6.0.2) Gecko/20100101 Firefox/6.0.2
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Accept-Language: en
+Accept-Encoding: gzip,deflate
+Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7
+Connection: keep-alive
+${REFERER}
+${COOKIE}
+LinuxFire602Heads
+
+	'Linux-Firefox-8.0.1' => <<'LinuxFire801Heads',
+GET ${URI} HTTP/1.1
+Host: ${HOST}
+User-Agent: Mozilla/5.0 (X11; Linux i686 on x86_64; rv:8.0.1) Gecko/20100101 Firefox/8.0.1
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Accept-Language: en
+Accept-Encoding: gzip, deflate
+Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7
+Connection: keep-alive
+${REFERER}
+${COOKIE}
+LinuxFire801Heads
+
+	'Linux-Firefox-10.0.1' => <<'LinuxFire1001Heads',
+GET ${URI} HTTP/1.1
+Host: ${HOST}
+User-Agent: Mozilla/5.0 (X11; Linux i686 on x86_64; rv:10.0.1) Gecko/20100101 Firefox/10.0.1
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Accept-Language: en
+Accept-Encoding: gzip, deflate
+Connection: keep-alive
+${REFERER}
+${COOKIE}
+LinuxFire1001Heads
+
+	'Linux-Firefox-15.0.1' => <<'LinuxFire1501Heads',
+GET ${URI} HTTP/1.1
+Host: ${HOST}
+User-Agent: Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:15.0) Gecko/20100101 Firefox/15.0.1
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Accept-Language: en
+Accept-Encoding: gzip, deflate
+Connection: keep-alive
+${REFERER}
+${COOKIE}
+LinuxFire1501Heads
+
+	'Linux-Firefox-16.0.1' => <<'LinuxFire1601Heads',
+GET ${URI} HTTP/1.1
+Host: ${HOST}
+User-Agent: Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:16.0) Gecko/20100101 Firefox/16.0
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Accept-Language: en
+Accept-Encoding: gzip, deflate
+Connection: keep-alive
+${COOKIE}
+${REFERER}
+LinuxFire1601Heads
+
+	'Linux-Firefox-18.0' => <<'LinuxFire180Heads',
+GET ${URI} HTTP/1.1
+Host: ${HOST}
+User-Agent: Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:18.0) Gecko/20100101 Firefox/18.0
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Accept-Language: en
+Accept-Encoding: gzip, deflate
+Connection: keep-alive
+${REFERER}
+${COOKIE}
+LinuxFire180Heads
+
+# Flock is a Mozilla based browser with a social networking theme.
+# It is available for Windows, Mac OS X, and Linux.
+	'Linux-Flock-07' => <<'LinFlock07Heads',
+GET ${URI} HTTP/1.1
+Host: ${HOST}
+User-Agent: Mozilla/5.0 (X11; U; Linux i686 (x86_64); en-US; rv:1.8.0.11) Gecko/20070501 Firefox/1.5.0.11 Flock/0.7.13.1
+Accept: text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5
+Accept-Language: en-us,en;q=0.5
+Accept-Encoding: gzip,deflate
+Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7
+Keep-Alive: 300
+Connection: keep-alive
+${REFERER}
+${COOKIE}
+LinFlock07Heads
+
+	'MacPPC-Explorer-4.0' => <<'MacPPCExp40Heads',
+GET ${URI} HTTP/1.0
+Host: ${HOST}
+Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, image/xbm, image/x-jg, */*
+Accept-Language: en
+If-Modified-Since: Fri, 01 Oct 1999 00:25:43 GMT
+User-Agent: Mozilla/4.0 (compatible; MSIE 4.01; Mac_PowerPC)
+UA-OS: MacOS
+UA-CPU: PPC
+Extension: Security/Remote-Passphrase
+${REFERER}
+${COOKIE}
+MacPPCExp40Heads
+
+	'MacPPC-Netscape-4.0' => <<'MacPPCNS40Heads',
+GET ${URI} HTTP/1.0
+Proxy-Connection: Keep-Alive
+User-Agent: Mozilla/4.05 (Macintosh; I; PPC, Nav)
+Pragma: no-cache
+Host: ${HOST}
+Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, image/png, */*
+Accept-Language: en
+Accept-Charset: iso-8859-1,*,utf-8
+${REFERER}
+${COOKIE}
+MacPPCNS40Heads
+
+	'MacPPC-Netscape-4.6' => <<'MacPPCNS46Heads',
+GET ${URI} HTTP/1.0
+User-Agent: Mozilla/4.6 (Macintosh; I; PPC)
+Pragma: no-cache
+Host: ${HOST}
+Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, image/png, */*
+Accept-Encoding: gzip
+Accept-Language: en
+Accept-Charset: iso-8859-1,*,utf-8
+${REFERER}
+${COOKIE}
+MacPPCNS46Heads
+
+	'MacOSX-Safari-1.2.4' => <<'MacXSaf124Heads',
+GET ${URI} HTTP/1.1
+Host: ${HOST}
+Connection: keep-alive
+User-Agent: Mozilla/5.0 (Macintosh; U; PPC Mac OS X; en-us) AppleWebKit/125.5.5 (KHTML, like Gecko) Safari/125.12
+Accept: */*
+Accept-Encoding: gzip, deflate;q=1.0, identity;q=0.5, *;q=0
+Accept-Language: en-us, ja;q=0.62, de-de;q=0.93, de;q=0.90, fr-fr;q=0.86, fr;q=0.83, nl-nl;q=0.79, nl;q=0.76, it-it;q=0.72, it;q=0.69, ja-jp;q=0.66, en;q=0.97, es-es;q=0.59, es;q=0.55, da-dk;q=0.52, da;q=0.48, fi-fi;q=0.45, fi;q=0.41, ko-kr;q=0.38
+${REFERER}
+${COOKIE}
+MacXSaf124Heads
+
+# Interestingly, though this IDs as "PPC", it was a Intel-based MacBook
+# running OSX 10.4.10
+	'MacOSX-Safari-2.0.4' => <<'MacXSaf204Heads',
+GET ${URI} HTTP/1.1
+Accept: */*
+Accept-Language: en
+Accept-Encoding: gzip, deflate
+User-Agent: Mozilla/5.0 (Macintosh; U; PPC Mac OS X; en) AppleWebKit/419.2.1 (KHTML, like Gecko) Safari/419.3
+Connection: keep-alive
+Host: ${HOST}
+${REFERER}
+${COOKIE}
+MacXSaf204Heads
+
+	'MacOSX-Explorer-5.2' => <<'MacXExp52Heads',
+GET ${URI} HTTP/1.1
+Host: ${HOST}
+Accept: */*
+Accept-Language: en
+Connection: Keep-Alive
+User-Agent: Mozilla/4.0 (compatible; MSIE 5.23; Mac_PowerPC)
+UA-OS: MacOS
+UA-CPU: PPC
+Extension: Security/Remote-Passphrase
+${REFERER}
+${COOKIE}
+MacXExp52Heads
+
+	'Linux-Netscape-3.0' => <<'LinNS30Heads',
+GET ${URI} HTTP/1.0
+User-Agent: Mozilla/3.0 (X11; I; Linux 2.2.5-15 i686)
+Pragma: no-cache
+Host: ${HOST}
+Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, */*
+${REFERER}
+${COOKIE}
+LinNS30Heads
+
+	'Linux-Netscape-4.51' => <<'LinNS451Heads',
+GET ${URI} HTTP/1.0
+User-Agent: Mozilla/4.51 [en] (X11; I; Linux 2.2.5-15 i686)
+Host: ${HOST}
+Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, image/png, */*
+Accept-Encoding: gzip
+Accept-Language: en
+Accept-Charset: iso-8859-1,*,utf-8
+${REFERER}
+${COOKIE}
+LinNS451Heads
+
+	'Linux-Mozilla-1.0.0' => <<'LinMz100Heads',
+GET ${URI} HTTP/1.1
+Host: ${HOST}
+User-Agent: Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.0.0) Gecko/20020529
+Accept: text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,video/x-mng,image/png,image/jpeg,image/gif;q=0.2,text/css,*/*;q=0.1
+Accept-Language: en, de;q=0.66, ja;q=0.33
+Accept-Encoding: gzip, deflate, compress;q=0.9
+Accept-Charset: ISO-8859-1, utf-8;q=0.66, *;q=0.66
+Keep-Alive: 300
+${REFERER}
+${COOKIE}
+LinMz100Heads
+
+	'Linux-Mozilla-1.7b' => <<'LinMz17bHeads',
+GET ${URI} HTTP/1.1
+Host: ${HOST}
+User-Agent: Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.7b) Gecko/20040401
+Accept: text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5
+Accept-Language: en,de;q=0.7,ja;q=0.3
+Accept-Encoding: gzip,deflate
+Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7
+Keep-Alive: 300
+Connection: keep-alive
+${REFERER}
+${COOKIE}
+LinMz17bHeads
+
+# Firebird (nee Phoenix) is a Mozilla derivative available for Unix,
+# Windows, and Macs
+	'Linux-Phoenix-0.6-beta' => <<'LinPh06Heads',
+GET ${URI} HTTP/1.1
+Host: ${HOST}
+User-Agent: Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.5a) Gecko/20030703 Mozilla Firebird/0.6
+Accept: image/png,image/jpeg,image/gif;q=0.2,*/*;q=0.1
+Accept-Language: en-us,en;q=0.5
+Accept-Encoding: gzip,deflate,compress;q=0.9
+Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7
+Keep-Alive: 300
+Connection: keep-alive
+${REFERER}
+${COOKIE}
+LinPh06Heads
+
+# Firefox (nee Firebird) is a Mozilla derivative available for Unix,
+# Windows, and Macs. This is one of the nightly builds, not a milestone.
+	'Linux-Firefox-0.8-beta' => <<'LinFi08Heads',
+GET ${URI} HTTP/1.1
+Host: ${HOST}
+User-Agent: Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.7b) Gecko/20040323 Firefox/0.8.0+
+Accept: image/png,*/*;q=0.5
+Accept-Language: en,en-us;q=0.5
+Accept-Encoding: gzip,deflate
+Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7
+Keep-Alive: 300
+Connection: keep-alive
+${REFERER}
+${COOKIE}
+LinFi08Heads
+
+	'WindowsME-Firefox-1.0rc1' => <<'WinMEFi10r1Heads',
+GET ${URI} HTTP/1.1
+Host: ${HOST}
+User-Agent: Mozilla/5.0 (Windows; U; Win 9x 4.90; rv:1.7.3) Gecko/20041001 Firefox/0.10.1
+Accept: text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5
+Accept-Language: en-us,en;q=0.5
+Accept-Encoding: gzip,deflate
+Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7
+Keep-Alive: 300
+Connection: keep-alive
+${REFERER}
+${COOKIE}
+WinMEFi10r1Heads
+
+	'Linux-Firefox-1.5.0.4' => <<'LinFire1504Heads',
+GET ${URI} HTTP/1.1
+Host: ${HOST}
+User-Agent: Mozilla/5.0 (X11; U; Linux i686 (x86_64); en-US; rv:1.8.0.4) Gecko/20060508 Firefox/1.5.0.4
+Accept: image/png,*/*;q=0.5
+Accept-Language: en,en-us;q=0.5
+Accept-Encoding: gzip,deflate
+Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7
+Keep-Alive: 300
+Connection: keep-alive
+${REFERER}
+${COOKIE}
+LinFire1504Heads
+
+# Konqueror is a minor Unix (mostly Linux) graphical browser
+	'Konqueror-2.1.1' => <<'Konq211Heads',
+GET ${URI} HTTP/1.1
+Connection: Keep-Alive
+User-Agent: Mozilla/5.0 (compatible; Konqueror/2.1.1; X11)
+Accept: text/*;q=1.0, image/png;q=1.0, image/jpeg;q=1.0, image/gif;q=1.0, image/*;q=0.8, */*;q=0.5
+Accept-Encoding: x-gzip; q=1.0, gzip; q=1.0, identity
+Accept-Charset: iso-8859-1;q=1.0, *;q=0.9, utf-8;q=0.8
+Accept-Language: en_US, en
+Host: ${HOST}
+${REFERER}
+${COOKIE}
+Konq211Heads
+
+	'Konqueror-4.3.5' => <<'Konq435Heads',
+GET ${URI} HTTP/1.1
+Host: ${HOST}
+Connection: Keep-Alive
+User-Agent: Mozilla/5.0 (compatible; Konqueror/4.3; Linux) KHTML/4.3.5 (like Gecko) SUSE
+Accept: text/html, image/jpeg;q=0.9, image/png;q=0.9, text/*;q=0.9, image/*;q=0.9, */*;q=0.8
+Accept-Encoding: x-gzip, x-deflate, gzip, deflate
+Accept-Charset: utf-8, utf-8;q=0.5, *;q=0.5
+Accept-Language: en-US, en
+${REFERER}
+${COOKIE}
+Konq435Heads
+
+	'Epiphany-2.28.2' => <<'Epi2282Heads',
+GET ${URI} HTTP/1.1
+Host: ${HOST}
+User-Agent: Mozilla/5.0 (X11; U; Linux x86_64; en-us) AppleWebKit/531.2+ (KHTML, like Gecko) Safari/531.2+ Epiphany/2.28.2 SUSE/2.28.0-2.4
+Accept: application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5
+Accept-Encoding: gzip
+${REFERER}
+${COOKIE}
+Epi2282Heads
+
+);
+
+sub THEEND {
+  my $signame = (shift or '(unknown)');
+  die "Got SIG$signame ... exiting\n";
+} # &THEEND
+
+sub BUMP {
+  my $signame = (shift or '(unknown)');
+  $nosignal = 0;
+} # end &BUMP 
+
+$SIG{INT}  = 'main::THEEND';
+$SIG{TERM} = 'main::THEEND';
+$SIG{PIPE} = 'main::BUMP';
+
+while(defined($ARGV[0]) and substr($ARGV[0], 0, 1) eq '-') {
+    if (($ARGV[0] eq '-a') or ($ARGV[0] eq '--autoname'))  {
+      $autoname = 1;
+      shift;
+    } elsif (($ARGV[0] eq '-B') or ($ARGV[0] eq '--no-body'))  {
+      $print_body = 0;
+      shift;
+    } elsif (($ARGV[0] eq '-h') or ($ARGV[0] eq '--heads'))  {
+      $print_heads = 1;
+      shift;
+    } elsif (($ARGV[0] eq '-e') or ($ARGV[0] eq '--head'))  {
+      $head_request = 1;
+      shift;
+    } elsif (($ARGV[0] eq '-f') or ($ARGV[0] eq '--follow'))  {
+      $follow = 1;
+      shift;
+    } elsif (($ARGV[0] eq '-k') or ($ARGV[0] eq '--correct'))  {
+      $correct = 1;
+      shift;
+    } elsif (($ARGV[0] eq '-l') or ($ARGV[0] eq '--long'))  {
+      $long = 1;
+      shift;
+    } elsif (($ARGV[0] eq '-q') or ($ARGV[0] eq '--quiet'))  {
+      $verbose --;
+      shift;
+    } elsif (($ARGV[0] eq '-v') or ($ARGV[0] eq '--verbose'))  {
+      $verbose ++;
+      shift;
+    } elsif (($ARGV[0] eq '-A') or ($ARGV[0] eq '--arbitrary'))  {
+      shift;
+      if($ARGV[0] =~ /^content-type:\s*([^$EOL]*)$/i) {
+        $contenttype = $1;
+        shift;
+      } elsif($ARGV[0] =~ /^[^\s:]+:\s*[^$EOL]*$/) {
+	$arbitrary .= $ARGV[0] . $EOL;
+	shift;
+      } else {
+	print STDERR "$id: -a (--arbitrary) requires a header\n";
+	usage(2);
+      }
+    } elsif (($ARGV[0] eq '-o') or ($ARGV[0] eq '--out'))  {
+      shift;
+      $outfile = shift;
+      if (!defined($outfile) or (defined($urlfile) and $urlfile =~ /^-/)) {
+	print STDERR "$id: -o (--out) requires an output file\n";
+	usage(2);
+      }
+    } elsif (($ARGV[0] eq '-F') or ($ARGV[0] eq '--file'))  {
+      shift;
+      $urlfile = shift;
+      if (!defined($urlfile) or ($urlfile ne '-' and (! -f $urlfile))) {
+	print STDERR "$id: -F (--file) requires an input file\n";
+	usage(2);
+      }
+      if (!open(URLF, "< $urlfile")) {
+        print STDERR "$id: can't open url file $urlfile: $!\n";
+	exit 1;
+      }
+      binmode(URLF, ":raw");
+    } elsif (($ARGV[0] eq '-x') or ($ARGV[0] eq '--prefix'))  {
+      shift;
+      $prefix = shift;
+      if (!defined($prefix)) {
+	print STDERR "$id: -x (--prefix) requires a string\n";
+	usage(2);
+      }
+    } elsif (($ARGV[0] eq '-w') or ($ARGV[0] eq '--wait'))  {
+      shift;
+      $waittime = shift;
+      if (!defined($waittime)) {
+	print STDERR "$id: -w (--wait) requires an integer or integer pair\n";
+	usage(2);
+      } elsif ($waittime =~ /^(\d+),(\d+)$/) {
+	$average   = $1;
+        $deviation = $2;
+	eval 'use Math::Random;';
+	if ($@) { 
+	  warn "$id: Can't use Math::Random: $@\nWill not use random waits.\n";
+	  $waittime = $average;
+	  $average = $deviation = undef;
+	} 
+      } elsif ($waittime !~ /^\d+$/) {
+	print STDERR "$id: -w (--wait) requires an integer or integer pair\n";
+	usage(2);
+      }
+    } elsif (($ARGV[0] eq '-C') or ($ARGV[0] eq '--count'))  {
+      eval 'use Benchmark;';
+      shift;
+      $count = shift;
+      if ($@) { 
+        warn "$id: Can't use Benchmark module: $@\n";
+      } else {
+	if (!defined($count) or $count !~ /^\d+$/) {
+	  print STDERR "$id: -C (--count) requires an integer argument\n";
+	  usage(2);
+	}
+      }
+    } elsif (($ARGV[0] eq '-t') or ($ARGV[0] eq '--time'))  {
+      eval 'use Benchmark;';
+      shift;
+      if ($@) { 
+        warn "$id: Can't use Benchmark module: $@\n";
+      } else {
+        $benchmark = shift;
+	if (!defined($benchmark) or $benchmark !~ /^\d+$/) {
+	  print STDERR "$id: -t (--time) requires an integer argument\n";
+	  usage(2);
+	}
+      }
+    } elsif (($ARGV[0] eq '-s') or ($ARGV[0] eq '--status'))  {
+      shift;
+      if (defined($ARGV[0]) and $ARGV[0] =~ /^\d\d\d$/) {
+	$exitunless = shift;
+      } else {
+	print STDERR "$id: -s (--status) requires a HTTP status code number\n";
+	usage(2);
+      }
+    } elsif (($ARGV[0] eq '-d') or ($ARGV[0] eq '--dontdechunk'))  {
+      $dechunk = 0;
+      shift;
+    } elsif (($ARGV[0] eq '-r') or ($ARGV[0] eq '--request'))  {
+      $print_request = 1;
+      shift;
+    } elsif (($ARGV[0] eq '-L') or ($ARGV[0] eq '--language'))  {
+      shift;
+      if (defined($ARGV[0]) and substr($ARGV[0], 0, 1) ne '-') {
+	$lang = shift;
+      } else {
+	print STDERR "$id: -L (--language) requires an argument\n";
+	usage(2);
+      }
+    } elsif (($ARGV[0] eq '-H') or ($ARGV[0] eq '--host'))  {
+      shift;
+      if (defined($ARGV[0]) and substr($ARGV[0], 0, 1) ne '-') {
+	$forcehost = shift;
+      } else {
+	print STDERR "$id: -H (--host) requires an argument\n";
+	usage(2);
+      }
+    } elsif (($ARGV[0] eq '-u') or ($ARGV[0] eq '--user'))  {
+      shift;
+      if (defined($ARGV[0]) and substr($ARGV[0], 0, 1) ne '-') {
+	$user = &base64(shift);
+      } else {
+	print STDERR "$id: -u (--user) requires an argument\n";
+	usage(2);
+      }
+    } elsif (($ARGV[0] eq '-P') or ($ARGV[0] eq '--filepost'))  {
+      shift;
+      if (defined($ARGV[0]) and ( -f $ARGV[0] or $ARGV[0] eq '-')) {
+	$postfile = shift;
+      } else {
+	print STDERR "$id: -P (--filepost) requires file argument\n";
+	usage(2);
+      }
+      if(open(PD, "< $postfile")) {
+	binmode(PD, ":raw");
+	$post = '';
+        while(<PD>) {
+	  $post .= $_;
+	}
+	close PD;
+	if ($post =~ s/\AContent-Type:[ \t]*(\S.*)\cm?\cj//i) {
+	  $contenttype = $1;
+	}
+	if ($post =~ s/\ATransfer-Encoding:[ \t]*(.*)\n//i) {
+	  $addencoding = $1;
+	}
+      } else {
+	print STDERR "$id: -P (--filepost) can't open $postfile: $!\n";
+	usage(2);
+      }
+    } elsif (($ARGV[0] eq '-p') or ($ARGV[0] eq '--post'))  {
+      shift;
+      if (defined($ARGV[0]) and substr($ARGV[0], 0, 1) ne '-') {
+	$post = shift;
+      } else {
+	print STDERR "$id: -p (--post) requires an argument\n";
+	usage(2);
+      }
+    } elsif (($ARGV[0] eq '-R') or ($ARGV[0] eq '--refer'))  {
+      shift;
+      if (defined($ARGV[0]) and substr($ARGV[0], 0, 1) ne '-') {
+	$refer = shift;
+      } else {
+	print STDERR "$id: -R (--refer) requires an argument\n";
+	usage(2);
+      }
+    } elsif (($ARGV[0] eq '-c') or ($ARGV[0] eq '--cookie'))  {
+      shift;
+      if (defined($ARGV[0]) and substr($ARGV[0], 0, 1) ne '-') {
+	$cookie = shift;
+      } else {
+	print STDERR "$id: -c (--cookie) requires an argument\n";
+	usage(2);
+      }
+    } elsif (($ARGV[0] eq '-b') or ($ARGV[0] eq '--browser'))  {
+      shift;
+      if (defined($ARGV[0]) and substr($ARGV[0], 0, 1) ne '-') {
+	$ARGV[0] =~ /([\w.\d-]+)/; shift;
+	$bv = $1;
+	if (!defined($headers{$bv})) {
+	  print STDERR "$id: $bv is not a recognized browser\n";
+	  usage(2);
+	}
+      } else {
+	print STDERR "$id: -b (--browser) requires an argument\n";
+	usage(2);
+      }
+  } elsif ($ARGV[0] eq '--version') {
+    print "$0 version $VERSION $LONG_VERSION_INFO\n";
+    exit(0);
+  } elsif ($ARGV[0] eq '--emulations') {
+    &usage_emulations();
+    exit(0);
+  } elsif ($ARGV[0] eq '--languages') {
+    &usage_languages();
+    exit(0);
+  } elsif ($ARGV[0] eq '--help') {
+    &usage(0);
+  } else {
+    print STDERR "$0: $ARGV[0] not a recognized option\n";
+    &usage(2);
+  }
+}
+
+if($correct) { $follow *= -1; }
+if($verbose < 0) { $verbose = 0; }
+
+if (!defined($ARGV[0]) and !defined($urlfile)) {
+  print STDERR "No URL found\n";
+  usage(2);
+}
+
+if ($benchmark or $count) {
+  
+  if($count) {
+    # zero IS optimized
+    $optimize = 0;
+    $benchmark = $count;
+  } else {
+    # non-zero IS NOT optimized
+    $optimize = 1;
+  }
+
+  timethis($benchmark, 
+    sub {
+      if (defined($urlfile)) {
+	while(defined($url = <URLF>)) {
+	  if($url =~ m,^(\S+)\s+(https?:/.*),i) {
+	    $refer = $1;
+	    $url = $2;
+	  }
+	  if($url =~ m,(\S+)\s+(\S(?:.*\S)?),) {
+	    $url = $1;
+	    $outfile = $2;
+	  }
+	  &do_one($url, 1);
+	}
+      } else {
+	for $url (@ARGV) {
+	  &do_one($url, 1);
+	}
+      }
+    }
+  );
+  close URLF;
+} else {
+  my $sleep;
+
+  # Normal loop through them.
+  if (defined($urlfile)) {
+    while(defined($url = <URLF>)) {
+      sleep $sleep if $sleep;
+      if($url =~ m,^(\S+)\s+(https?:/.*),i) {
+	$refer = $1;
+	$url = $2;
+      }
+      if($url =~ m,(\S+)\s+(\S(?:.*\S)?),) {
+	$url = $1;
+	$outfile = $2;
+      }
+      &do_one($url, 0);
+
+      if (defined($average)) {
+	$sleep = Math::Random::random_normal(1, $average, $deviation);
+      } else {
+	$sleep = $waittime;
+      }
+    }
+    close URLF;
+  } else {
+    while(defined($url = shift)) {
+      if($sleep) {
+	# Flush the rest of the last fetch before we sleep
+	$| = 1; 
+	# Now revert to regular buffering
+	$| = 0;
+
+        sleep $sleep;
+      }
+      &do_one($url, 0);
+
+      if (defined($average)) {
+	$sleep = Math::Random::random_normal(1, $average, $deviation);
+      } else {
+	$sleep = $waittime;
+      }
+    }
+  }
+
+}
+exit(0);
+
+#####################################################
+# Process one URL from the command line. If $timing is set,
+# don't optimize away the actual request.
+# (Warning: This function uses globals.)
+sub do_one ($$) {
+  my $url = shift;
+  my $timing = shift;
+  my $nport;
+  my $host;
+  my $connecthost;
+  my $proto;
+  my $lpart = '/';
+  my $header = $headers{$bv} . $EOL;
+  my $ans;	# holds response from web server
+  my $newreq;
+
+  # Simple-mindedly parse the request
+
+  if ((!$correct) and
+      $url =~ m%(https?):/+([^/?]+)([?].+)?$%) {
+    # this case is for a URL something like http://example.com?args
+    # with no initial slash on lpart
+    $proto = $1;
+    $host = $2;
+    $lpart .= $3 if defined($3);
+  } elsif ($url !~ m%(https?):/+([^/?]+)(/.+)?%) {
+    warn("Can't get host for $url; skipping\n");
+    return undef;
+  } else {
+    $proto = $1;
+    $host = $2;
+    $lpart = $3 if defined($3);
+  }
+
+  if($proto eq 'https') {
+    $nport = 443;
+  } else {
+    $nport = 80;
+  }
+
+  if ($autoname) {
+    my $out = $lpart;
+
+    $out =~ s:.*/::;
+    if (length($out) < 1) {
+      $out = $dirdefault;
+    }
+    if (defined($prefix)) {
+      $out = "$prefix$out";
+    }
+
+    if (open(STDOUT,">$out")) {
+      binmode(STDOUT, ":raw");
+      if($verbose) { print STDERR "Sending output going to $out\n"; }
+    } else {
+      warn "Can't open $out for output.\n";
+    }
+  } elsif($outfile) {
+    if(open(STDOUT,">>$outfile")) {
+      binmode(STDOUT, ":raw");
+      if($verbose) { print STDERR "Sending output going to $outfile\n"; }
+    } else {
+      warn "Can't open $outfile for output.\n";
+    }
+  }
+
+  if (defined($forcehost)) {
+    $connecthost = $forcehost;
+  } else {
+    $connecthost = $host;
+  }
+
+  # Do referer headers, etc.
+  if ($long) { 
+    $header =~ s#\$\{URI\}#$proto://${host}$lpart#g;
+  } else {
+    $header =~ s/\$\{URI\}/$lpart/g;
+  }
+  $header =~ s/\$\{HOST\}/$host/g;
+  $header =~ s/\$\{REFERER\}/Referer: $refer/g;
+  $header =~ s/\$\{COOKIE\}/Cookie: $cookie/g;
+
+  if (defined($lang)) {
+    $header =~ s/Accept-Language:[^\cm\cj]*\cm?\cj/Accept-Language: $lang$EOL/i;
+  }
+
+  if (defined($user)) {
+    $header =~ s/\cm?\cj\cm?\cj/${EOL}Authorization: Basic $user$EOL/;
+  }
+
+  $header =~ s/\cm?\cj/$EOL/g;
+
+  # Delete empty headers
+  $header =~ s/\cM\cJ([^\s:]+):\s(?=\cM\cJ)//g;
+
+  # Add in arbitrary headers (allowed to be empty), already will have
+  # line end(s)
+  if (length($arbitrary)) {
+    $header =~ s/\cm\cj\cm\cj/${EOL}$arbitrary$EOL/;
+  }
+
+  if (defined($post)) {
+    my $size = length($post);
+    my $extra;
+
+    if(defined($addencoding)) {
+      if($addencoding =~ /chunked/i) {
+        $extra = $addencoding;
+      } else {
+        $extra = "$addencoding${EOL}Content-Length: $size$EOL";
+      }
+    } else {
+        $extra = "Content-Length: $size$EOL";
+    }
+
+    $header =~ s/^GET/POST/;
+    $header =~ s/\cm\cj\cm\cj/${EOL}Content-Type: $contenttype${EOL}$extra$EOL/;
+    $header .= $post;
+  } elsif ($head_request) {
+    $header =~ s/^GET/HEAD/;
+  }
+
+  # Grab first line for &grab
+  $header =~ s/^([^\cm\cj]+$EOL)//;
+  $newreq = $1;
+
+  if($verbose > 1) { print STDERR "$id: headers prepared.\n"; }
+  # Log the request
+  print "$newreq$header" if $print_request;
+  print "\n"             if($print_request and defined($post));
+
+  if (!($print_heads or $print_body) and !$timing) {
+    return "$newreq$header";
+  }
+
+  # Strip :port off of host before the grab. (It needs to be left in above
+  # for the Host: header to work right.)
+  if ($connecthost =~ s/:(\d+)//) {
+    $nport = $1;
+  }
+
+  # Fetch the page
+  $ans = &grab($connecthost, $nport, 
+	       \$newreq, \$header, $url,
+	       $print_heads, $print_body, $timing, $follow, $exitunless);
+} # end &do_one  
+
+
+#####################################################
+# Grab an html page. Needs a remote hostname, a port number
+# a first line request (eg "GET / HTTP/1.0"), and the remainder
+# of the request (empty string if HTTP/0.9).
+# This function should use only these globals:
+#	$nosignal	also used in signal handler
+sub grab ($$$$$$$$$$) {
+  my ($remote, $port, $request, $heads, $url, $printhead, $printbody, $no_optimize,
+      $doredir, $eul) = @_;
+  my ($iaddr, $paddr, $line);
+  my $out = '';
+  my $len;
+  my $chunked;
+  my $tograb = undef;
+  my $sc;
+  my $rc;
+
+  if(($port == 443) || (($port % 100)==43)) { 
+    if($verbose > 1) { print STDERR "$id: port $port, using Net::SSLeay::Handle\n"; }
+    if(!tie(*SOCK, "Net::SSLeay::Handle", $remote, $port)) {
+      $out = &err444("ssl socket: $!", $printhead, $printbody);
+      if ($eul && $eul != $INTERNAL_ERROR_CODE) {
+	print STDERR "Got status $INTERNAL_ERROR_CODE, exiting.\n";
+	exit(3);
+      }
+      return($out);
+    }
+  } else {
+    if (!($iaddr = inet_aton($remote))) { 
+      $out = &err444("no host: $remote", $printhead, $printbody);
+      if ($eul && $eul != $INTERNAL_ERROR_CODE) {
+	print STDERR "Got status $INTERNAL_ERROR_CODE, exiting.\n";
+	exit(3);
+      }
+      return($out);
+    }
+
+    $paddr   = sockaddr_in($port, $iaddr);
+
+    if($verbose > 1) { print STDERR "$id: socket prepared.\n"; }
+    print 'Peer is ' .  inet_ntoa($iaddr) . ":$port\n" if $debug;
+
+    if (!socket(SOCK, PF_INET, SOCK_STREAM, $tcpproto)) {
+      $out = &err444("socket: $!", $printhead, $printbody);
+      if ($eul && $eul != $INTERNAL_ERROR_CODE) {
+	print STDERR "Got status $INTERNAL_ERROR_CODE, exiting.\n";
+	exit(3);
+      }
+      return($out);
+    }
+    if (!connect(SOCK, $paddr)) {
+      $out = &err444("connect: $!", $printhead, $printbody);
+      if ($eul && $eul != $INTERNAL_ERROR_CODE) {
+	print STDERR "Got status $INTERNAL_ERROR_CODE, exiting.\n";
+	exit(3);
+      }
+      return($out);
+    }
+
+    if($verbose > 1) { print STDERR "$id: connection opened.\n"; }
+    # Not needed for tie(SSL) socket?
+    binmode(SOCK, ":raw");
+  }
+
+  if(!defined($$request)) {
+    $" = "; ";
+    die "ARG! invalid request (internal error)\n\@_ = @_\n";
+  }
+  $len = length($$request);
+  $rc = syswrite(SOCK, $$request, $len);
+
+  if($verbose > 1) { print STDERR "$id: request written.\n"; }
+  if ($rc != $len) {
+    warn("request write to $remote was short ($rc != $len)\n");
+
+  } else {
+    $len = length($$heads);
+    $rc = syswrite(SOCK, $$heads, $len);
+
+    warn("heads write to $remote was short ($rc != $len)\n")
+    	if ($rc != length($$heads));
+  }
+  if($verbose > 1) { print STDERR "$id: headers written.\n"; }
+
+  $nosignal = 1;
+
+  while ($line = &saferead() and $nosignal) {
+    $out .= $line;
+    last if ($line =~ /^\015?\012?$/);
+  }
+  if($verbose > 1) { print STDERR "$id: headers read.\n"; }
+
+  if($dechunk) {
+    $out =~ s/(\015?\012|015\012?)(Transfer-Encoding:[ \t]*chunked)\b/${1}Xbget-$2/i;
+    if(defined($2)) {
+      $chunked = 1;
+      if($verbose > 1) { print STDERR "$id: transfer-encoding chunked.\n"; }
+    }
+  }
+
+  print $out if $printhead;
+
+  if ($eul) {
+    if ($out =~ m:^http/\d+\.\d+ \s+ (\d\d\d):xi) {
+      $sc = $1;
+    } else {
+      $sc = $INTERNAL_ERROR_CODE;
+    }
+  }
+  if (!$printbody and !$no_optimize) {
+    close (SOCK)            || die "close: $!";
+    if ($doredir) {
+      if ($out =~ /(?:\015?\012|015\012?)Location:[ \t]*([^\015\012]+)/i) {
+        my $newurl = $1;
+
+	if($newurl =~ m,^http://,) {
+	  if($verbose) { print STDERR "Following redirection to $newurl\n"; }
+	} elsif ($doredir > 0) {
+	  if($newurl =~ m,^/,) {
+	    # Stop after host[:port]
+	    $url =~ m,^(https?://[^/]*)/,;
+	    $newurl = "$1$newurl";
+	  } else {
+	    # Stop at last /
+	    $url =~ m,^(https?://.*/),;
+	    $newurl = "$1$newurl";
+	  }
+	  if($verbose) { print STDERR "Following corrected redirection to $newurl\n"; }
+	} else {
+	  print STDERR "Bad redirection to $newurl\n";
+	  return $out;
+	}
+	$out = &do_one($newurl, 0);
+      }
+    }
+    if ($eul and $eul != $sc) {
+      if ($verbose) { print STDERR "Got status $sc, exiting.\n"; }
+      exit(3);
+    }
+    return $out;
+  }
+
+  if ($out =~ /\nContent-Length:\s+(\d+)/) {
+    $tograb = $1;
+    if($verbose > 1) { print STDERR "$id: content-length $tograb.\n"; }
+  }
+
+  if (defined($tograb) or $chunked) {
+    my $chunk  = 512;	# not too large, since it is off the network
+    my $total  = 0;
+    my $csize;
+    my $buf;
+    my $rc;
+
+    if(!defined($tograb)) {
+      $line = &saferead();
+      if($line =~ /^([\da-f]+)[ \t]*\cM?$/i) {
+        $tograb = hex($1);
+      } else {
+        warn "Missing or malformed chunk size while dechunking.\n";
+	return $out;
+      }
+      $chunk = $tograb;	# use the server suggested chunk sizes
+
+    } else {
+      # if we have Content-Length and Transfer-Encoding: chunked, 
+      # who knows what's right. Let's just use the former.
+      $chunked = 0;
+    }
+
+    if ($verbose and ($autoname || $outfile)) {
+      if($chunked) {
+        print STDERR "Expecting chunk: $tograb bytes\n";
+      } else {
+        print STDERR "Expecting: $tograb bytes\n";
+      }
+    }
+    while(($tograb >= $chunk) and $tograb) {
+      $buf = '';
+      $rc = read(SOCK,$buf,$chunk,0);
+      print $buf if $printbody;
+      $total += $rc;
+      if ($rc != $chunk) {
+	if($head_request and $rc == 0) {
+	  # If it is a head request, and we legitimately get no body,
+	  # then we still don't want to return, because we may have
+	  # a redirect to follow.
+	  $tograb = 0;
+	} elsif (($head_request and $rc !=0) or (!$head_request)) {
+	  warn "Return from $remote read was short (got $rc of $chunk; ".
+		  "$total total)\n";
+	  return $out;
+	}
+      }
+
+      if($chunked) {
+        undef($tograb);
+	# Sometimes there is garbage after a chunk, so lets
+	# skip until we find the next value.
+	while(!defined($tograb)) {
+          $line = &saferead();
+          # $rc = read(SOCK,$line,16,0);
+	  if(!defined($line)) {
+	    $tograb = 0;
+	  } elsif($line =~ /^([\da-f]+)\cM?$/i) {
+	    $tograb = hex($1);
+	    $chunk = $tograb;
+	  }
+	}
+
+	if ($verbose and ($autoname || $outfile)) {
+	  print STDERR "Expecting chunk: $tograb bytes\n";
+	}
+      } else {
+	$tograb -= $chunk;
+      }
+    }
+
+    if ($tograb > 0) {
+      $buf = '';
+      $rc = read(SOCK,$buf,$tograb,0);
+      print $buf if $printbody;
+      $total += $rc;
+      if ($rc != $tograb) {
+	if($head_request and $rc == 0) {
+	  $tograb = 0;
+	} elsif (($head_request and $rc !=0) or (!$head_request)) {
+	  warn "Return from $remote read was short (got $rc of $tograb; ".
+		"$total total)\n";
+	  return $out;
+	}
+      }
+    }
+
+  } else {
+
+    $nosignal = 1;
+    # Back to line by line mode.
+    if($verbose > 1) { print STDERR "$id: line by line read.\n"; }
+    while (defined($line = <SOCK>) and $nosignal) {
+      # OLD store every way : $out .= $line;
+      print $line if $printbody;
+    }
+  }
+
+  close (SOCK)            || die "close: $!";
+
+  if($verbose > 1) { print STDERR "$id: socked closed.\n"; }
+
+  if ($doredir) {
+    if ($out =~ /(?:\015?\012|015\012?)Location:[ \t]*([^\015\012]+)/i) {
+      my $newurl = $1;
+      
+      if($newurl =~ m,^http://,) {
+	if ($verbose) { print STDERR "Following redirection to $newurl\n"; }
+      } elsif ($doredir > 0) {
+	if($newurl =~ m,^/,) {
+	  # Stop after host[:port]
+	  $url =~ m,^(https?://[^/]*)/,;
+	  $newurl = "$1$newurl";
+	} else {
+	  # Stop at last /
+	  $url =~ m,^(https?://.*/),;
+	  $newurl = "$1$newurl";
+	}
+	if ($verbose) { print STDERR "Following corrected redirection to $newurl\n"; }
+      } else {
+	print STDERR "Bad redirection to $newurl\n";
+	return $out;
+      }
+      $out = &do_one($newurl, 0);
+    }
+  }
+  
+  if($eul and $eul != $sc) {
+    if($verbose) { print STDERR "Got status $sc, exiting.\n"; }
+    exit(3);
+  }
+  return $out;
+} # end &grab
+
+#####################################################
+# Attempt to read a line safely from SOCK filehandle.
+sub saferead () {
+  my $line;
+  eval {
+  	local$SIG{ALRM} = sub { die 'timeout!' };
+	alarm 15;
+	$line = <SOCK>;
+	alarm 0;
+       };
+  if ($@ and $@ !~ /timeout!/) {warn("during socket read: $@\n")}
+  return $line;
+} # end &saferead 
+
+#####################################################
+# Print a usage message. Exits with the number passed in.
+sub usage ($) {
+  my $exit = shift;
+
+  if($exit == 2) {
+    print "$0: Use 'bget --help' for usage\n";
+    exit $exit;
+  }
+
+  print <<"EndUsage";
+$0 usage:
+  bget [options] [URL...]
+
+Basic tool to make HTTP GET requests and monitor the results.
+Unlike LWP GET, it does not require special Perl modules, and
+by virtue of being cruder makes HTTP headers easier to spy on.
+Only URLs of the forms 
+
+     http://hostname/[localpart]
+     http://hostname:port/[localpart]
+
+are supported.
+
+Options:
+  	-a --autoname		save output automatically based on URI
+	-A --arbitrary HEADER	add an arbitrary header (multiple -A okay)
+	-b --browser   NAME	what browser to emulate
+  	-B --no-body		don't print the body of the response
+	-c --cookie    VALUE	set the cookie header with VALUE
+	-C --count     N	like -t/--time, but optimizations apply
+	-d --dontdechunk	do not de-chunk Tranfer-Encoding: chunked
+	-e --head 		make a HEAD request instead of a GET
+	-f --follow		follow redirects
+	-F --file      FILE	read URLs from FILE
+	-h --heads		print the response headers
+	-H --host      HOST[:P]	connect to HOST for request (useful for
+				testing virtual hosts before a DNS change)
+	-k --correct		with '-f', don't follow misformated redirs
+	-l --long		use long address on GET line (using the
+				full http://... should work in HTTP/1.1)
+	-L --language  LANG	use LANG for Accept-Language:
+	-o --out       FILE	save output to FILE
+	-p --post      STRING	use STRING as a POST form contents (forms of
+				type application/x-www-form-urlencoded only)
+	-P --filepost  FILE	FILE contains post data; if the first line
+				is "Content-Type: foo/bar" will set mime type
+	-q --quiet		reduce verbosity (can use more than once)
+	-r --request		print the request headers
+	-R --refer     VALUE	set the referer header with VALUE
+	-s --status    CODE	exit unless HTTP status is CODE
+	-t --time      N	use Benchmark module to time making
+				request(s) N times
+	-u --user      USER:PW	basic authentification as USER:PW
+	-v --verbose            increase verbosity (can use more than once)
+	-w --wait      N	wait N seconds between fetching each URL
+	-w --wait      A,D	wait average A seconds, std deviation D
+	-x --prefix    PRE	prefix -a (--autoname) files with PRE
+
+	--help                  show this help and exit
+	--version               print version and exit
+	--emulations            print list of available emulations
+	--languages             print a sample of language codes
+
+Note: If -H (--host) is used with multiple URLs, all connections are
+      made to the specified HOST (and port) even if different hosts
+      are used in the URLs. This can be used to fetch files through
+      a HTTP proxy if -l (--long) is also used.
+
+      With -L (--langauge) the Accept-Language: header will not be
+      added if the browser has not been observed to use it.
+
+      If two URLs are on a line in a -F (--file) URL file, the first is
+      used as a referer, until the next two URL line. An outfile can
+      be specified in a -F (--file) URL file, if it is after the URL
+      to fetch and doesn't begin with "http:/" or "https:/"
+EndUsage
+
+  exit($exit);
+} # end &usage 
+
+sub usage_languages() {
+  print <<'LanguageRef';
+In HTTP standard languages have a two letter code, with an optional
+two letter country code qualifier. English is 'en', but American
+English is 'en-us', Irish English is 'en-ie', Australian English is
+'en-au'.
+
+Some other lanuages:
+  af	Afrikaans
+  sq	Albanian
+  eu	Basque
+  bg	Bulgarian
+  be	Byelorussian
+  ca	Catalan
+  zh	Chinese
+  zh-cn	Chinese/China
+  zh-tw	Chinese/Taiwan
+  hr	Croatian
+  cs	Czech
+  da	Danish
+  nl	Dutch
+  nl-be	Dutch/Belgium
+  fo	Faeroese
+  fi	Finnish
+  fr	French
+  fr-be	French/Belgium
+  fr-ca	French/Canada
+  fr-fr	French/France
+  fr-ch	French/Switzerland
+  gl	Galician
+  de	German
+  de-at	German/Austria
+  de-de	German/Germany
+  de-ch	German/Switzerland
+  el	Greek
+  hu	Hungarian
+  is	Icelandic
+  id	Indonesian
+  ga	Irish
+  it	Italian
+  ja	Japanese
+  ko	Korean
+  mk	Macedonian
+  no	Norwegian
+  pl	Polish
+  pt	Portuguese
+  pt-br	Portuguese/Brazil
+  ro	Romanian
+  ru	Russian
+  gd	Scots Gaelic
+  sr	Serbian
+  sk	Slovak
+  sl	Slovenian
+  es	Spanish
+  es-ar	Spanish/Argentina
+  es-co	Spanish/Colombia
+  ex-mx	Spanish/Mexico
+  es-es	Spanish/Spain
+  sv	Swedish
+  tr	Turkish
+  uk	Ukrainian
+
+This list is from the default set of lanuages in Netscape 4.5.
+IE has a different set, including more country variations. Multiple
+languages are comma seperated, a preference quality can be appended.
+A star means accept any. Technically specifying a variant without
+a star or the base language means only accept the variant, not the
+generic. IE encourages this broken request type, however.
+
+Example: "en; q=1.0, de; q=0.7, it; q=0.5, fr; q=0.2, *; q=0.1"
+
+
+LanguageRef
+}
+
+sub usage_emulations() {
+  my $key;
+  my @keys = sort {lc($a) cmp lc($b)} keys %headers;
+  my $k = scalar @keys;
+
+  print "The following $k browsers are recognized for header emulation:\n";
+  foreach $key (@keys) {
+    print "\t$key\n" if length($headers{$key});
+  }
+
+}
+
+#####################################################
+# For managing cookies, a monster.
+sub monster ($$) {
+  my $host = shift;
+  my $reqref = shift;
+
+  return unless defined($$reqref) and length($$reqref);
+  if ($host =~ /\.doubleclick\./) {
+    $$reqref =~ s/\cjCookie:[^\cm\cj]*/\cjX-Monster: doubleclick cookie eaten/gi;
+  } elsif ($host =~ /^(ads|adforce|adserv[er]*)\./i) {
+    $$reqref =~ s/\cjCookie:[^\cm\cj]*/\cjX-Monster: $1.* host cookie eaten/gi;
+  }
+
+} # end &monster 
+
+sub err444 ($$$) {
+  my $why = shift;
+  my ($phead, $pbody) = @_;
+
+  my $return;
+($return = <<"444ErrorHead") =~ s/\cj/\cm\cj/g;
+HTTP/1.0 $INTERNAL_ERROR_CODE Not Found
+X-Declined: $why
+Content-Type: text/html
+Content-Length: 28
+
+444ErrorHead
+
+  my $body;
+$body = <<"444ErrorBody";
+<html><head><title>Error $INTERNAL_ERROR_CODE</title></head><body>
+<h1>Error $INTERNAL_ERROR_CODE Not Found</h1>
+<p>$why</p>
+</body></html>
+444ErrorBody
+
+  print $return if $phead;
+  print $body   if $pbody;
+
+  return($return);
+} # end &err444
+
+# This code stolen from MIME::Base64's perl-only backup. The XS
+# version is much faster, but I don't want to assume it is installed.
+sub base64 ($) {
+    my $res = "";
+    my $eol = "\n";
+    pos($_[0]) = 0;                          # ensure start at the beginning
+    while ($_[0] =~ /(.{1,45})/gs) {
+        $res .= substr(pack('u', $1), 1);
+        chop($res);
+    }
+    $res =~ tr|` -_|AA-Za-z0-9+/|;               # `# help emacs
+    # fix padding at the end
+    my $padding = (3 - length($_[0]) % 3) % 3;
+    $res =~ s/.{$padding}$/'=' x $padding/e if $padding;
+    # break encoded string into lines of no more than 76 characters each
+    if (length $eol) {
+        $res =~ s/(.{1,76})/$1$eol/g;
+    }
+    $res;
+} # end &base64 
+
+__END__
+Benchmarking:
+$ bget -t 1000 -B http://localhost/
+timethis 1000: 53 wallclock secs (17.52 usr +  1.44 sys = 18.96 CPU) @ 52.74/s (n=1000)
+$ /tmp/lwp-bm http://localhost/
+timethis 1000: 52 wallclock secs (14.66 usr +  1.77 sys = 16.43 CPU) @ 60.86/s (n=1000)
+$ cat /tmp/lwp-bm
+#!/usr/bin/perl -w
+
+use LWP::UserAgent; 
+use HTTP::Request; 
+use HTTP::Response; 
+use Benchmark;
+
+my $raw_url = shift or die "usage: $0 url\n"; 
+my $url = $raw_url; #URI::Heuristic::uf_urlstr($raw_url);
+$| = 1;                                  
+my $ua = LWP::UserAgent->new(); 
+
+timethis(1000, sub {
+my $req = HTTP::Request->new(GET => $url); 
+
+my $response = $ua->request($req);
+});
+$
+
+
+From: helgi@NOSPAMdecode.is (Helgi Briem)
+Newsgroups: comp.lang.perl.misc
+Subject: Re: Faster than LWP
+Date: Wed, 13 Dec 2000 16:50:39 GMT
+Reply-To: helgi@NOSPAMdecode.is
+Message-ID: <3a37a450.537807185@news.itn.is>
+References: <m2aea1ygmh.fsf@rt158.private.realtime.co.uk>
+	<28424-3A36E39B-22@storefull-247.iap.bryant.webtv.net>
+
+[...]
+Using LWP is easy and lightning fast.  Your problem almost 
+[...]
+This code, slightly modified from the Perl Cookbook works 
+for me every day and is lightning fast for either ftp or 
+http, substitute your own proxy server and port number.:
+
+Regards,
+Helgi Briem
+
+#!/usr/bin/perl -w 
+
+use LWP::UserAgent; 
+use HTTP::Request; 
+use HTTP::Response; 
+use URI::Heuristic;
+
+my $raw_url = shift or die "usage: $0 url\n"; 
+my $url = URI::Heuristic::uf_urlstr($raw_url);
+$| = 1;                                  
+printf "%s =>\n\t", $url;
+my $ua = LWP::UserAgent->new(); 
+$ua->proxy(['http', 'ftp'] =>
+'http://MYPROXY.DOMAIN.COM:80');
+
+my $req = HTTP::Request->new(GET => $url); 
+
+my $response = $ua->request($req);
+if ($response->is_error()) {
+     printf " %s\n", $response->status_line;
+ } else {
+     my $count;
+     my $bytes;
+     my $content = $response->content();
+     $bytes = length $content;
+     $count = ($content =~ tr/\n/\n/);
+     printf "%s (%d lines, %d bytes)\n", $response->content;
+} 
+
+
+=pod
+
+=head1 NAME
+
+bget - basic HTTP get tool
+
+=head1 DESCRIPTION
+
+Basic tool to make HTTP GET requests and monitor the results.
+Unlike LWP GET, it does not require special Perl modules, and
+by virtue of being cruder makes HTTP headers easier to spy on.
+
+Only URLs of the forms 
+
+     http://hostname/[localpart]
+     http://hostname:port/[localpart]
+
+are supported.
+
+Options:
+
+=over 4
+
+=item *
+
+-a --autoname	
+
+Save output automatically based on URI. Will not warn if the
+file already exists. This overrides the -o (--out) option.
+The prefered output name is everything after the last / in
+the URL, or 'dir-default' if the URL ends with a /.
+
+
+=item *
+
+-A --arbitrary  HEADER
+
+Adds an arbitrary header to the output, always, even if the actual
+browser would not include that header. Header should be in the form
+of "Field-Name: value" with appropriate shell quoting for whitespace.
+Use this to change the default Content-Type value on POST requests.
+This adds a single header line, but it can be used multiple times.
+
+By choosing the "bot-generic" emulation and then adding in other
+headers with this option, almost any User-Agent can be imitated from
+the command line.
+
+=item *
+
+-B --no-body	
+
+Don't print the body of the response.
+
+=item *
+
+-b --browser  NAME
+
+What browser to emulate. Use I<--emulations> to list
+available browser headers.
+
+=item *
+
+-c --cookie   VALUE
+
+Set the cookie header with VALUE.
+
+=item *
+
+-d --dontdechunk
+
+As of version 1.2, when the response headers indicate a Transfer-Encoding
+of 'chunked', bget will rename the header (prefixing it with 'Xbget-')
+and unchunk the response. This is desirable so that chunked responses
+from HTTP/1.1 servers look right. In some cases it may be desirable to
+see raw output from the server however, so this behavior can be turned off.
+
+=item *
+
+-e --head
+
+Make a HEAD request instead of a GET. Note that this does not imply
+-h (--heads) to print the headers, nor -B (--no-body) to supress
+printing any body content. (Some servers, eg www.yahoo.com, treat
+HEAD like a GET.)
+
+=item *
+
+-F --file     FILE
+
+Read URLs from FILE (one per line) instead of from command line.
+Use filename C<-> for standard input.
+
+If there are two URLs on a line, the first one is used as the referer
+URL. The referer will remain un use until the next line with two URLs.
+
+If there is an additional field after the URL, that will be used as
+an I<-o> (I<--out>) output file until the next line with an output file.
+An output file should not begin with "http:/" or "https:/".
+
+Fields on each line of the URL file are whitespace separated.
+
+=item *
+
+-f --follow
+
+Follow redirects. If printing headers, the redirecting headers and
+the destination headers will be printed. (No loop detection is
+attempted.) If printing bodies and not saving via autoname, the
+redirecting body and the destination body will be printed. If
+saving via autoname, a new file will be opened for each request
+made.  Some redirects (eg loops) may cause the autonaming to pick
+the same filename as a previous request, which will cause the
+earlier file to be clobbered.
+
+=item *
+
+-H --host     HOST[:P] 
+
+Connect to HOST for request (useful for
+testing virtual hosts before a DNS change or
+use with I<-l> for proxies).
+
+=item *
+
+-h --heads	
+
+Print the response headers.
+
+=item *
+
+-k --correct
+
+When used with I<-f>, only follow correctly formatted redirections.
+(This was the default behavior in bget up to version 1.2.)
+
+
+=item *
+
+-L --language LANG
+
+Use LANG for Accept-Language: header. See
+I<--languages> for a small list.
+
+=item *
+
+-l --long	
+
+Use long address on GET line (using the
+full http://... format, a MUST for HTTP/1.1
+server compliance but handy with I<-H> for
+proxies).
+
+=item *
+
+-o --out     FILE
+
+Write output to FILE. Unlike I<-a> (I<--autoname>) this will not use a
+different file for each request. The autoname option has precedence
+over this option. Filenames in a I<-F> (I<--file>) URL file will also
+override this.
+
+=item *
+
+-p --post     STRING
+
+Use STRING as a post form contents (forms of
+type application/x-www-form-urlencoded only).
+
+=item *
+
+-P --filepost FILE
+
+Use contents of FILE as a post form contents. If the
+first line is of the form "Content-Type: foo/bar" it will be
+used to set the Content-Type: header. More than just the MIME
+type is allowed, but it must be all on one line. Typical POST
+content types are
+
+   application/x-www-form-urlencoded
+
+      Encoded like a typical CGI URL.
+
+   multipart/form-data
+
+      Each form element is in a separate MIME part; needed for
+      file uploads. This type requires a boundary parameter on
+      the Content-Type: header.
+
+There is a similar allowance for setting the Transfer-Encoding:
+header. This must be on the second line if Content-Type: is set,
+and on the first line if not. When Transfer-Encoding: contains
+the string 'chunked', Content-Length: will not be set for a post.
+Note that apache 1.3.x (at least) does not allow chunked POST
+requests.
+
+You may find the tool C<mkpost> (available in the scripts section
+of CPAN) to be helpful in creating CGI interface files for this
+option. For other content types, like "text/xml" for XML-RPC interface
+requests, other tools will be needed.
+
+=item *
+
+-q --quiet
+
+Reduce verbosity by 1, can be used more than once and mixed with 
+the verbosity increasing option. Verbosity starts at 1.
+
+=item *
+
+-R --refer    VALUE
+
+Set the (initial) referer header with VALUE.
+
+=item *
+
+-r --request	
+
+Print the request headers.
+
+=item *
+
+-s --status   CODE	
+
+After fetching a page -- including following redirects and printing bits
+of the response as controlled by other options -- if the HTTP status
+code is not exactly the one given, bget will exit (returning code 3
+to the shell). Useful for looping until one hits a 404 or the like.
+
+=item *
+
+-t --time     N	
+
+Use Benchmark module to time making the command line
+request(s) N times.
+
+=item *
+
+-C --count    N
+
+Just like -t/--time, but optimizations apply: if neither heads nor
+bodies are requested, nothing will be fetched. If body is not
+requested only heads will be fetched.
+
+=item *
+
+-u --user     USER:PW
+
+Basic authentification in the form {username}:{password}.
+
+=item *
+
+-v --verbose
+
+Increase verbosity by 1, can be used more than once and mixed with 
+the verbosity decreasing option. Verbosity starts at 1.
+
+=item *
+
+-w --wait     N	
+
+Wait N seconds between fetching each URL.
+
+=item *
+
+-w --wait     A,D	
+
+Waits a random number of seconds, average A standard deviation D,
+between fetching each URL. Requires the Math::Random module.
+Useful for being subtle when fetching a lot of pages, along with
+emulating a browser and using per-page referer headers via the
+I<-F> (I<--file>) method.
+
+=item *
+
+--help                 
+
+Show a help message and exit.
+
+=item *
+
+--version              
+
+Print version and exit.
+
+=item *
+
+--emulations           
+
+Print list of available browser emulations.
+
+=item *
+
+--languages            
+
+Print a sample of language codes.
+
+=back
+
+=head2 Note
+
+If I<-H> (I<--host>) is used with multiple URLs, all connections are
+made to the specified HOST (and port) even if different hosts
+are used in the URLs. This can be used to fetch files through
+a HTTP proxy if I<-l> (I<--long>) is also used.
+
+With I<-L> (I<--langauge>) the Accept-Language: header will not be
+added if the browser has not been observed to use it.
+
+=head1 EMULATIONS
+
+The following browsers are recognized for header emulation. This
+might not be the definitive list. Check I<--emulations> for that.
+Some have comments to help identify them.
+
+=over 4
+
+=item *
+
+Generic-Mozilla-2010
+
+This is a synthetic very generic "Mozilla" client, designed for being
+inconspicuous, full featured, yet with terse headers. The User-Agent is
+an observed-in-the-wild (Sep 2010) variation on the familiar.
+
+=item *
+
+bot-generic
+
+A most basic bot observed used by some web and security research companies.
+Actually probably multiple bots that just look alike from afar. This has
+the most minimal headers needed for typical requests.
+
+=item *
+
+Amaya-8.1
+
+Amaya is the W3C's combination browser page editor.
+
+=item *
+
+links-0.84
+
+Text mode browser for Unix.
+E<lt>http://artax.karlin.mff.cuni.cz/~mikulas/linksE<gt>
+Version 0.84 does not do cookies or referer headers, so we might
+misemulate it that way.
+
+=item * 
+
+elinks-0.5pre4-linux
+
+Forked from links, this is another text mode browser. Quirks include
+giving a bunch away about the system, including window size, in the
+User-Agent: and including a 'Referer' header in URLs entered by hand.
+The User-Agent for this is from a Redhat 7.1 x86 system in an 80x24 window.
+E<lt>http://elinks.or.cz/E<gt>
+
+=item *
+
+w3c-5.2.8
+
+Command line web tool that uses libwww.
+E<lt>http://www.w3.org/ComLine/E<gt>
+
+=item *
+
+w3m-beta99
+
+=item *
+
+w3m-img-0.5.2
+
+Text-mode browser for Unix. The beta99 variant is quite old. The
+w3m-img version can display images in text mode settings like
+xterms (using clever X11 hacks).
+E<lt>http://w3m.sourceforge.net/E<gt>
+
+=item *
+
+edbrowse-3.4.5
+
+This is a text-mode browser for Unix with an ed(1)-inspired interface
+but bizarrely with javascript support. The developer is blind and prefers
+line-oriented displays (ideal for braille output). Quoteth the README:
+
+=over
+
+Netscape and Explorer are graphical browsers.
+Lynx and Links are screen browsers.
+This is a command line browser; the only one of its kind.
+
+=back
+
+E<lt>http://the-brannons.com/edbrowse/E<gt>
+
+=item *
+
+Dillo-0.8.4
+
+Dillo is Linux browser, under current development, that focuses on
+speed, small size, and protocol correctness. It can do cookies, but
+it defaults to not accepting them. It does not do Referer: headers,
+but bget may misemulate it on that point.
+E<lt>http://www.dillo.org/E<gt>
+
+=item *
+
+Linux-Mosaic-2.6
+
+The browser that started the rush, compiled for Linux. This is an
+archaic browser. It doesn't do Host: headers or Cookies:. bget can
+misemulate the Cookies: part, but won't do the Host: header. Many
+modern sites require this for proper operation, so expect problems.
+The headers this thing spits out are longer even than the Lynx ones.
+
+=item *
+
+Qweb-1.3
+
+Qweb was an early X11 style-sheet capable browser. Too bad it didn't do
+javascript (needed for some stylesheets) or even Host: headers. bget
+will misemulate this if you use Cookies, but won't supply a Host: header.
+
+=item *
+
+X11-Chimera-1.70
+
+The name 'Chimera' has been used by two different browsers. This is the
+X11 Chimera developed at the University of Las Vegas, not the Mac Mozilla
+derivative Chimera. In authentic use this browser does not have cookies
+or use Referer: headers.
+
+=item *
+
+ApacheBench-1.3
+
+ab, the benchmark tool that comes with the Apache httpd package.
+
+=item *
+
+Opera-3.60
+
+An old version of a popular alternative browser for Windows.
+
+=item *
+
+Windows-Opera-7beta
+
+More modern (2003) version of Opera.
+
+=item *
+
+Windows-Opera-8.0
+
+Headers captured in the wild (most others are lab tested by the author)
+for Windows Opera 8.0, captured 2005 May 9.
+
+=item *
+
+Linux-Opera-6.11
+
+As of Opera 6.x there is a linux version.
+
+=item *
+
+lwp-request-1.38
+
+Lib WWW Perl module (these are the default headers).
+
+=item
+
+wget-1.6
+
+Command-line bulk page downloading tool for Unix.
+
+=item
+
+NetBSD-curl-7.10.4-HTTP1.1
+
+Command-line page upload/download tool for Unix. Prefers HTTP/1.1 but
+can do HTTP/1.0 upon request. Can do PUTs and DELETEs and other obscure
+things, too.
+
+=item
+
+NetBSD-curl-7.10.4-HTTP1.0
+
+Curl in HTTP/1.0 mode.
+
+=item *
+
+iCab-pre1.7
+
+Popular alternative browser for Macs.
+
+=item *
+
+junkbuster-2
+
+Once popular ad- and cookie-filtering proxy.  Junkbuster does a bunch
+of header editing from the actual browser headers, and thus the headers 
+out of it can vary considerably from this. It looks like Accept-*
+headers are not edited, allowing identification of the underlying
+browser sometimes. The Accept-* headers here come from a Netscape 4.7.
+By default, Junkbuster masquerades as Netscape 3.01 (GOLD) for Mac PPC.
+
+=item *
+
+Lynx-2.8.8dev9
+
+Popular text mode browser, predominately unix. Earlier versions of
+Lynx emulated here were very heavy with request headers. The 2.4.2
+version has 42 request headers, all short. The 2.8.5 version is down
+to nine headers, but four of them are over 200 characters. This version
+is down to five regular headers and all under 80 characters each.
+
+=item *
+
+Linux-Mozilla-1.0.0
+
+Mozilla is the open source version of Netscape 7. It exists for many
+platforms.
+
+=item *
+
+Linux-Phoenix-0.6-beta
+
+Phoenix (formerly Firebird, later Firefox) is Mozilla with a different
+user-interface library. There are unix, windows and mac variants.
+
+=item *
+
+Linux-Flock-07
+
+Flock is a Mozilla (Firefox) based browser with a social networking theme.
+It is available for Windows, Mac OS X, and Linux.
+
+=item *
+
+Konqueror-4.3.5
+
+Konqueror is a mostly-Linux browser based on KDE, it supports KHTML and
+WebKit rendering.
+
+=item *
+
+Epiphany-2.28.2
+
+Epiphany is a GNOME (mostly-Linux) browser based on the WebKit engine.
+
+=item *
+
+OpenOffice-1.0.0
+
+OpenOffice is a StarOffice relation, intended to be a free Unix
+"Office" compatible software bundle. It includes an HTML editor
+that can download pages to edit, but as such it does things like
+issue PROPFIND requests that are not emulated here.
+
+=item *
+
+WindowsNT-Explorer-5.0-as-4.0
+
+Explorer 5.0 can be installed with a compatibility mode that emulates
+(or claims to emaulate) Explorer 4.0.
+
+=item *
+
+Windows98-Explorer-5.5
+
+=item *
+
+WindowsNT-ActiveDesktop
+
+This is on a system with IE5.5 installed, but this identifies
+itself as IE4.01. This one is hard to do right, since in my
+tests I saw two requests for the test file. The first came
+with this UA, the second had this instead:
+
+User-Agent: Mozilla/4.0 (compatible; MSIE 4.01; MSIECrawler; Windows NT)
+
+The crawler version had an 'Accept-Language: us-en' as well as a
+different order to the headers (Accept: User-Agent:, Accept-Language:
+Accept-Encoding, Host:).
+
+=item *
+
+WindowsNT-Netscape6
+
+=item *
+
+WindowsNT-Explorer-5.5
+
+=item *
+
+Windows98-Explorer-4.0
+
+=item *
+
+WindowsNT-Explorer-5.0
+
+Normal mode Windows NT IE 5.0.
+
+=item *
+
+WindowsNT-ExplorerOffline-5.0
+
+IE can optionally crawl pages to cache them for offline browsing.
+This is Windows NT IE 5.01 in crawl mode.
+
+=item *
+
+WindowsNT-Netscape-4.6
+
+=item *
+
+MacPPC-Explorer-4.0
+
+Mac PPC is System 7, 8 or 9 on PowerPC computers.
+
+=item *
+
+MacPPC-Netscape-4.0
+
+=item *
+
+MacPPC-Netscape-4.6
+
+=item *
+
+MacOSX-Safari-1.2.4
+
+Safari is a KHTML (part of KDE) derivative that ships with OS X.
+
+=item *
+
+MacOSX-Safari-2.0.4
+
+This Safari version shiped with OS X v10.4.10. The headers say "PPC", but
+it was really an Intel-based Mac. This is a WebKit browser.
+
+=item *
+
+MacOSX-Explorer-5.2
+
+Internet Explorer for OS X. (Comes with OS X?)
+
+=item *
+
+Linux-Netscape-3.0
+
+=item *
+
+Linux-Netscape-4.51
+
+=item *
+
+PSP-2.0
+
+PlayStation Portable (PSP) with 2.0 firmware, header order lost.
+First hardware device emulated!
+
+=item *
+
+iPad2-Safari-5.1
+
+Second generation iPad with native Safari browser. This is a WebKit browser.
+
+=item *
+
+bot-Googlebot-2005
+
+Google's web crawl robot, captured in the wild 2005 May 08, header
+order lost. This one uses a bot style 'User-Agent' field. In 2010
+this bot (or one that looks just like it) is still going.
+
+=item *
+
+bot-Googlebot-2005b
+
+Google's web crawl robot, captured in the wild 2005 July 18, header
+order lost. This uses a browser style 'User-Agent' field.
+
+=item *
+
+bot-Yahoo-Slurp-2005
+
+Yahoo's web crawl robot, captured in the wild 2005 May 06, header
+order lost.
+
+=item *
+
+bot-Aipbot-2005
+
+Name Protect's web crawl robot, captured in the wild 2005 May 10, header
+order lost. Name Protect crawls looking for trademark violations.
+
+=item *
+
+bot-Askbot-2005
+
+Ask Jeeves' web crawl robot "Teoma", captured in the wild 2005 May 12, header
+order lost.
+
+=item *
+
+bot-ZyBorg-2005
+
+LookSmart.net web crawl robot "ZyBorg", captured in the wild 2005 May 25,
+header order lost.
+
+=item *
+
+bot-Become-2005
+
+Become.com web crawl robot "Becomebot", captured in the wild 2005 May 26,
+header order lost. This is a rare bot that does Referer: headers.
+
+=item *
+
+bot-voyager-2006
+
+Kosmix.com web crawl robot "Voyager/1.0", captured in the wild 2006 Apr 20,
+header order lost.
+
+=item *
+
+bot-dcbot-2006
+
+Boitho.com web crawl robot "boitho-dc/0.81", captured in the wild 2006 May 17,
+header order lost. Boitho is a Norwegian search engine with an English
+interface.
+
+=item *
+
+bot-convera-2006
+
+The Convera.com web crawl robot "ConveraCrawler/0.9d", captured in the wild
+2006 Jun 17, header order lost. This bot has been observed to send
+"Cookie:"s. Convera uses this for "Excalibur Internet Search" a "private
+label search service".
+
+=item *
+
+bot-DotBot-2009
+
+DotBot from dotnetdotcom.org, captured 07 Jan 2009, header order lost,
+request came from 208.115.111.248. These guys do open web crawls for
+others to index (14gb of flat text torrent-able data as of Aug 2009).
+This bot's homepage gives instructions for using DNS to ensure that
+the headers really came from the bot and not an imposter. :^)
+
+=item *
+
+bot-BiggerBetter-2010
+
+BiggerBetter, Exalead search bot, captured 01 Aug 2010, header order lost,
+request came from 83.167.62.166. This bot sends a "Date" header with
+the server's date and time, eg "Date: Sun, 1 Aug 2010 10:29:52 GMT",
+but that is not emulated here.
+
+=item *
+
+bot-MSNbot-20-2010
+
+MSN's 2.0 bot. Unlike a number of other bots, this one changes version
+number relatively often. It's right up there with Google for frequency
+seen in logs. This variation was captured 28 Sep 2010 with a request
+from 207.46.13.98.
+
+=back
+
+=head1 LANGUAGES
+
+In HTTP standard languages use the ISO 639 two letter code, but
+can have an optional two letter country code for national variants.
+Generic English is 'en', American English is 'en-us', Irish English
+is 'en-ie', Australian English is 'en-au'.
+
+Some other lanuages:
+
+  af	Afrikaans
+  sq	Albanian
+  eu	Basque
+  bg	Bulgarian
+  be	Byelorussian
+  ca	Catalan
+  zh	Chinese
+  zh-cn	Chinese/China
+  zh-tw	Chinese/Taiwan
+  hr	Croatian
+  cs	Czech
+  da	Danish
+  nl	Dutch
+  nl-be	Dutch/Belgium
+  fo	Faeroese
+  fi	Finnish
+  fr	French
+  fr-be	French/Belgium
+  fr-ca	French/Canada
+  fr-fr	French/France
+  fr-ch	French/Switzerland
+  gl	Galician
+  de	German
+  de-at	German/Austria
+  de-de	German/Germany
+  de-ch	German/Switzerland
+  el	Greek
+  hu	Hungarian
+  is	Icelandic
+  id	Indonesian
+  ga	Irish
+  it	Italian
+  ja	Japanese
+  ko	Korean
+  mk	Macedonian
+  no	Norwegian
+  pl	Polish
+  pt	Portuguese
+  pt-br	Portuguese/Brazil
+  ro	Romanian
+  ru	Russian
+  gd	Scots Gaelic
+  sr	Serbian
+  sk	Slovak
+  sl	Slovenian
+  es	Spanish
+  es-ar	Spanish/Argentina
+  es-co	Spanish/Colombia
+  ex-mx	Spanish/Mexico
+  es-es	Spanish/Spain
+  sv	Swedish
+  tr	Turkish
+  uk	Ukrainian
+
+This list is from the default set of lanuages in Netscape 4.5.
+IE has a different set, including more country variations. Note
+that the country variations are frequently misused. A request
+with a language header like:
+
+	Accept-Language: en-us, es-mx; q=0.7, fr-ca; q=0.3
+
+Would specify a first choice language of US English, second
+choice Mexican Spanish, third choice Canadian French. If
+a content-negotiating server only has generic English, generic
+Spanish, and generic French, then by specification it should
+return a "406 Not Acceptable" error, since it has no languages
+that match. This could be seen as a deficiency of the
+spec, but that's the way it is.
+
+=head1 REVISION HISTORY
+
+NEW IN VERSION 1.4
+
+Arbitrary header adding, many more emulations.
+
+NEW IN VERSION 1.3
+
+Post from file bug fix, minor new options, many more emulations.
+
+NEW IN VERSION 1.2
+
+By supporting chunked transfer encodings, the author considers
+bget to be HTTP/1.1 compliant now. A word of warning, some
+emulations specify various allowed other encodings, like gziped
+content. You should be prepared to deal with these outside of
+bget.
+
+=head1 SEE ALSO
+
+C<mkpost> -- build bodies for HTTP CGI POST requests
+
+=head1 COPYRIGHT
+
+Copyright 1999-2013 by Eli the Bearded / Benjamin Elijah Griffin.
+Released under the same license(s) as Perl.
+
+=head1 AUTHOR
+
+Eli the Bearded originally wrote this to spy on headers and have a
+low cpu impact way to fetch files over http. It evolved from there.
+
+=head1 CPAN INFO
+
+=head1 SCRIPT CATEGORIES
+
+Web
+
+=head1 README
+
+bget - basic HTTP get tool
+
+=head1 PREREQUISITES
+
+This uses the C<strict>, C<vars>, C<Socket>, and C<Carp> modules.
+
+=head1 COREQUISITES
+
+This will try to use the C<Benchmark> and C<Math::Random> modules
+when run with certain options.
+
+=head1 OSNAMES
+
+Should not be OS dependent. The autoname feature (-a / --autoname)
+assumes that C</> separates directories, however this should have
+minimal impact since it always tries to save in the currrent directory.
+Problems will likely only ensue if the automatically chosen name
+contains a directory separator for the current OS.
+
+=cut

@@ -1,0 +1,15 @@
+#!/bin/sh
+unset VAULT_CAPATH
+export VAULT_ADDR=http://127.0.0.1:8200
+printf "Enter password for $1: "
+stty_orig=$(stty -g)
+stty -echo
+read value
+stty $stty_orig
+vault kv put secret/"$1" "value=$value"
+if [ $? != 0 ] ; then
+  echo "is vault running?"
+  echo "        vault server --dev &"
+  echo "        export VAULT_TOKEN=s.ZQVdL74r4gjtGNZNk21jhdqc # eg"
+  exit $?
+fi

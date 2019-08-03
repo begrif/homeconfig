@@ -1,0 +1,7 @@
+[user]
+  name = Benjamin Elijah Griffin
+  email = 
+[credential]
+        helper = cache --timeout=7200
+[color]
+        diff = false

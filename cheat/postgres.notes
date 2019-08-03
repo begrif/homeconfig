@@ -1,0 +1,22 @@
+psql -U$dbuser -h $host $database	start command line client
+\l					mysql's SHOW DATABASES;
+\dt					mysql's SHOW TABLES;
+\c database				mysql's USE database;
+\d table				mysql's DESCRIBE table;
+SELECT * FROM pg_stat_activity;		mysql's SHOW FULL PROCESSLIST;
+\q					quit cli
+
+\du					list users
+\du+					list users more details
+					uses pg_catalog.pg_user
+
+# other stuff very normal, eg:
+update vm set memory = 8 where vid = 1195;
+
+shell command to create ordinary user:
+createuser -D -S -R whaler
+
+
+postgres wants single quotes only for queries
+and defaults to case-sensitive column/table names
+

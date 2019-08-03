@@ -1,0 +1,24 @@
+#!/bin/sh
+# Usage: Say you run ssh and get this error:
+#
+# Warning: the RSA host key for 'slc-integration-jenkins03' differs from the key for the IP address '10.20.20.56'
+# Offending key for IP in /home/bgriffin/.ssh/known_hosts:300
+# Matching host key in /home/bgriffin/.ssh/known_hosts:660
+#
+# run: edithosts /home/bgriffin/.ssh/known_hosts:300
+#
+# then it deletes line 300 from known_hosts
+
+arg="$1"
+
+case "$arg" in
+    /*:[1-9]*) file=${arg%:[1-9]*} # short match of :[num]*
+               line=${arg##*:}     # long match of *:
+              ;;
+    *) echo "edithost: Issue with arg: $arg"; exit 1;
+esac
+
+(echo "$line d"; echo w ; echo q) | ed "$file"
+# consider:
+# (echo "$line d"; echo w ; echo q) | (ed "$file" 2>&1 ; echo -p)| dc
+exit $?

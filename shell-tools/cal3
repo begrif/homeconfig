@@ -1,0 +1,73 @@
+#!/bin/sh
+mode=wide
+
+case "$1" in
+	*-t*) mode=tall ;;
+	*-h*) echo "cal3: pretty print three month calendar, like 'cal -3' but "
+		echo "never with blank month placeholders netbsd cal does."
+		echo "Default is $mode, options are --wide or --tall."
+		exit 1 ;;
+esac
+
+month=`date +%m`
+year=`date +%Y`
+
+lm=`expr $month - 1`
+
+if test $lm = 0 ; then
+  lm=12
+  ly=`expr $year - 1`
+else
+  ly=$year
+fi
+
+nm=`expr $month + 1`
+
+if test $nm = 13 ; then
+  nm=1
+  ny=`expr $year + 1`
+else
+  ny=$year
+fi
+
+if [ $mode = tall ] ; then
+	cal $lm $ly
+	cal $month $year
+	cal $nm $ny
+else
+	( cal $lm $ly ;
+	  cal $month $year ;
+	  cal $nm $ny ) | \
+	perl -wlne 'END{$,="\n";print@l}
+		$n = (7 + $.) % 8;
+		chomp;
+		$l[$n] .= sprintf("%-24s", $_)'
+fi
+
+exit 
+
+:r! ksh %
+   December 2017      
+ S  M Tu  W Th  F  S  
+                1  2
+ 3  4  5  6  7  8  9
+10 11 12 13 14 15 16
+17 18 19 20 21 22 23
+24 25 26 27 28 29 30
+31
+    January 2018      
+ S  M Tu  W Th  F  S  
+    1  2  3  4  5  6
+ 7  8  9 10 11 12 13
+14 15 16 17 18 19 20
+21 22 23 24 25 26 27
+28 29 30 31
+
+   February 2018      
+ S  M Tu  W Th  F  S  
+             1  2  3
+ 4  5  6  7  8  9 10
+11 12 13 14 15 16 17
+18 19 20 21 22 23 24
+25 26 27 28
+

@@ -1,0 +1,39 @@
+yum search NAME			# package name search
+yum list available NAME –showduplicates	# find all versions of package NAME
+rpm -qa NAME			# show installed version of package NAME
+rpm -qf FILE			# find package which provided a file
+rpm -ql NAME			# find files installed by a package
+yum provides COMMAND		# find package which would provide a command COMMAND probably of form "*/vim" (eg)
+
+
+yum install epel-release
+
+yum -y install bind-utils	# for dig
+yum -y install net-tools 	# netstat
+yum -y install yum-utils	# package-cleanup tool
+
+# check last package install time
+rpm -qa –last
+
+# uninstall a package
+rpm -e PACKAGE
+
+# install a local package file
+rpm -i PACKAGE.rpm
+
+# just list installed
+yum list installed
+
+# just list can be installed
+yum list available
+
+# and just list updates available
+yum list updates
+
+# list dependencies, eg of this cron provivder:
+yum deplist cronie
+
+yum downgrade
+
+quick reference:
+https://access.redhat.com/articles/yum-cheat-sheet

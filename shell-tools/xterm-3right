@@ -1,0 +1,15 @@
+#!/bin/ksh
+# run three xterms along the right side
+
+size=80x24
+col3=-0
+row1=+0
+row2=+330
+row3=-60
+
+xterm -geometry $size$col3$row1 $@ &
+xterm -geometry $size$col3$row2 $@ &
+xterm -geometry $size$col3$row3 $@ &
+
+exit
+

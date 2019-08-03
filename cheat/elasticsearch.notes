@@ -1,0 +1,26 @@
+curl -XGET 'http://localhost:9200/'
+	# get version of elastic search, test general connection
+
+curl -XGET 'http://localhost:9200/packetbeat-*/_search?pretty=1'
+	# check the packetbeat-* indexes
+
+curl -XGET 'http://localhost:9200/_stats/?pretty=1'
+	# stats page
+
+curl -XGET 'http://localhost:9200/_aliases/?pretty=1'
+	# list indexes
+
+curl -XDELETE 'http://localhost:9200/%25{[@metadata][beat]}-*'
+	# delete bad index name
+
+kibana explorer initial; all above can be converted to explorer commands
+GET _search
+{
+  "query": {
+  "match_all": {}
+  }
+}
+
+
+https://github.com/logstash-plugins/logstash-filter-grok
+juno has RT_FLOW_SESSION_CREATE etc

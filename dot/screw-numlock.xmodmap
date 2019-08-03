@@ -1,0 +1,41 @@
+! drop caps_lock from lock modifier
+remove lock = Caps_Lock
+! drop num_lock from mod2 modifier
+remove mod2 = Num_Lock
+!
+! ! add caps_lock to mod2 (old num_lock)
+! add mod2 = Caps_Lock
+! keysym Caps_Lock = Num_Lock Pointer_EnableKeys Num_Lock Pointer_EnableKeys
+!
+! ! add pause to lock
+! add lock = Pause
+! keysym Pause = Caps_Lock NoSymbol Caps_Lock NoSymbol Caps_Lock
+!
+! add menu to mod3
+add mod3 = Menu
+keysym Menu = Menu Menu Menu Menu Menu
+!
+! make num_lock a tab
+keysym Num_Lock = Tab ISO_Left_Tab Tab ISO_Left_Tab Tab ISO_Left_Tab
+!
+! make caps_lock an escape
+keysym Caps_Lock = Escape NoSymbol Escape
+!
+! make shift-keypad-plus give an equals
+! need to disable (XTerm.shiftFonts: false) / remap (XTerm.vt100.translations)
+! larger-vt-font() / smaller-vt-font()
+! use KP_Equal or equal ? turns  out KP_Equal isn't well supported
+keysym KP_Add = KP_Add equal KP_Add XF86_Next_VMode KP_Add XF86_Next_VMode
+!
+! No numlock, no numlock keypad settings
+keycode  79 = KP_7 KP_7 KP_7 KP_7
+keycode  80 = KP_8 KP_8 KP_8 KP_8
+keycode  81 = KP_9 KP_9 KP_9 KP_9
+keycode  83 = KP_4 KP_4 KP_4 KP_4
+keycode  84 = KP_5 KP_5 KP_5 KP_5
+keycode  85 = KP_6 KP_6 KP_6 KP_6
+keycode  87 = KP_1 KP_1 KP_1 KP_1
+keycode  88 = KP_2 KP_2 KP_2 KP_2
+keycode  89 = KP_3 KP_3 KP_3 KP_3
+keycode  90 = KP_0 KP_0 KP_0 KP_0
+keycode  91 = KP_Decimal KP_Decimal KP_Decimal KP_Decimal

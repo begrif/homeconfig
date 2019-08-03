@@ -1,0 +1,112 @@
+chef-apply recipe.rb            run a single recipe
+
+chef-client --local-mode --runlist 'recipe[CBNAME]'     run a cookbook
+
+chef generate repo ~/chef-repo          create a new cookbook repo
+
+chef generate cookbook CBNAME           lay down a template for a new cookbook
+
+chef generate recipe CBNAME RECIPE      create a new recipe in a cookbook
+
+chef generate template CBNAME FNAME     create a template for FNAME (don't use .erb)
+
+chef generate attribute CBNAME default  create the default attributes file
+chef generate attribute CBNAME ATTRIB   create a new attributes file
+        node['awesome_customers']['group']      example use of attribute plain
+        "#{node['awesome_customers']['config']}"        example use of attribute quoted
+        <%= node['apache']['docroot_dir'] %>    example use of attribute in template
+
+knife cookbook site download CBNAME     download cookbook from a configured source
+
+knife cookbook upload CBNAME            upload a cookbook to chef server
+
+knife bootstrap {{address}} --ssh-user {{user}} --ssh-password '{{password}}' --sudo --use-sudo-password --node-name {{node}} --run-list 'recipe[{{CBNAME}}]'
+
+knife node list                         list bootstrapped nodes
+knife node show {{node}}                show details about node
+knife node show {{node}} -r		show run-list
+
+Non-empty
+   web-devzone-3.globix-sc.grumble.com:
+    run_list:
+      role[base-chef]
+      role[base-os]
+      role[base-baremetal]
+      role[base-monitoring]
+      role[base-ssh]
+
+Empty:
+  ops-bgriffin-401.internal.grumble.com:
+    run_list:
+  
+
+Bad host:
+  ERROR: The object you are looking for could not be found
+  Response: node 'ops-bg-win-401.grumble.grumble.com' not found
+
+# show details about ubuntu 12* hosts
+knife search node 'platform:ubuntu AND platform_version:12*'
+
+# {{address}} can be a nodename or a search pattern a-la "knife search node"
+knife ssh {{address}} chef-client -x root	# run as root
+knife ssh {{address}} "sudo chef-client"
+knife ssh {{address}} 'sudo chef-client' --manual-list --ssh-user {{user}} --ssh-password '{{password}}'
+
+
+------
+rubocop					check everything in current dir & sub
+
+	to disable a check, eg long lines, use a special comment
+	# rubocop:disable Metrics/LineLength
+
+
+foodcritic $(find . -name \*.rb)	check ruby files
+
+==============
+==============
+
+knife help list 
+
+knife node show web-qa-1.globix-sc.grumble.com
+
+knife cookbook upload NAME
+
+knife search "platform:ubuntu AND chef_environment:lasvegas" 
+
+knife search "platform:ubuntu AND platform_version:10*"
+
+knife ssh SEARCHPATTERN "command-to-run" -x user
+
+# rename a node {
+# from https://docwhat.org/rename-chef-node/
+
+  # edit /etc/hostname /etc/hosts with NEWNAME
+  knife node edit OLDNAME
+	change the name, and knife will resave as the new
+  
+  # delete node and client key for old
+  knife node delete OLDNAME
+  knife client delete OLDNAME
+
+  # create a new client key
+  knife client create -d NEWNAME
+  	outputs new RSA private key
+	save as /etc/chef/client.pem on NEWNAME
+
+  # on NEWNAME, restart chef:
+  /etc/init.d/chef-client restart
+# }
+
+-----
+new cookbook workflow
+
+knife cookbook create NAME
+cd NAME
+kitchen init
+git init
+vi README.md CHANGELOG.md metadata.rb
+(create / edit other files)
+rubocop $(find . -name \*.rb)
+foodcritic .
+git add .
+

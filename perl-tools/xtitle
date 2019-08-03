@@ -1,0 +1,35 @@
+#!/usr/bin/perl -w
+# A better way to do this would be: 
+#       xprop -id $WINDOWID -set WM_NAME $title
+# (xterms set $WINDOWID for the child shell)
+#     
+# My code came from studying the output of an app that changed
+# the title.
+
+#if (open(OUT, '> /tmp/xtitle.out')) {
+#  for (sort { $a cmp $b } keys(%ENV)) {
+#    print OUT "$_\t$ENV{$_}\n"; 
+#  }
+#  close OUT;
+#}            
+
+# fix for ansible; SHLVL == 4 is true for the xterm I run
+# ansible from, at least at the time I wrote this.
+# but allow explicit title setting for any shell level
+if(!defined($ARGV[0]) and $ENV{SHLVL} and $ENV{SHLVL} > 4) {
+  exit; 
+}       
+
+if (@ARGV) {
+  $" = " ";
+# The standard window title
+  print "\c[]2;@ARGV\cG";
+# This is a title for icon
+# print "\c[]1;@ARGV\cG";
+# This is a title for window and icon
+# print "\c[]0;@ARGV\cG";
+} else {
+  $tty = `/usr/bin/tty`;
+  chomp $tty;
+  print "\c[]2;$tty\cG";
+}

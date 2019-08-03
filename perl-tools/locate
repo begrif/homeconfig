@@ -1,0 +1,62 @@
+#!/usr/bin/perl
+# Cheap substitute for the real local utility.
+# Works by scanning a file list for fixed strings (no RE / globs and IS
+# case sensitive)
+#
+# example file list build command:
+#   find /centos* /etc/ /home/* /lib* /opt/ /sbin/ /usr/ /var/ 2>/dev/null -type f > $HOME/files-$(date +%Y%m%d)
+# Note that "find / -xdev" doesn't do a good job.
+# Maybe dir list: ls -d /* | grep -Ev '/(boot|cgroup|dev|media|mnt|proc|root|selinux|srv|tmp)$'
+#
+use strict;
+use warnings;
+
+my $search_pattern = shift;
+if(!defined($search_pattern)) { 
+  die "Usage: $0 SEARCHPATTERN\n";
+}
+
+my $file_list;
+my $search_dir = '/home/bgriffin';
+
+my @candidates;
+if(!opendir(SD, $search_dir)) {
+  die "$0: cannot search for file list file: $!\n";
+}
+
+while(defined($_ = readdir(SD))) {
+  if (/^files-(\d+)$/) {
+    push(@candidates, $1);
+  }
+}
+closedir SD;
+
+if(!@candidates) {
+  die "$0: found no list file: $search_dir/files-YYYYMMDD\n";
+}
+
+# sort to find largest number
+$_ = (sort({$a <=> $b} @candidates))[-1];
+
+$file_list = "$search_dir/files-$_";
+if(!open(FL, '<', $file_list)) {
+  die "$0: $file_list: $!\n";
+}
+
+my $found = 0;
+while(<FL>) {
+  if(-1 != index($_, $search_pattern)) {
+    $found ++;
+    print;
+  }
+}
+close FL;
+
+# TODO: warn if filelist is old
+
+if($found == 0) {
+  warn "No matches found in $file_list\n";
+  exit -1;
+}
+exit;
+__END__

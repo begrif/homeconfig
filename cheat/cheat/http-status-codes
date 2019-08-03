@@ -1,0 +1,40 @@
+    100	 Continue                            HTTP/1.1
+    101	 Switching Protocols                 HTTP/1.1
+    200	 OK                                  HTTP/1.0
+    201	 Created                             HTTP/1.0
+    202	 Accepted                            HTTP/1.0
+    203	 Non-Authoritative Information       HTTP/1.1
+    204	 No Content                          HTTP/1.0
+    205	 Reset Content                       HTTP/1.1
+    206	 Partial Content                     HTTP/1.1
+    300	 Multiple Choices                    HTTP/1.1
+    301	 Moved Permanently                   HTTP/1.0
+    302	 Found                               HTTP/1.0
+    303	 See Other                           HTTP/1.1
+    304	 Not Modified                        HTTP/1.0
+    305	 Use Proxy                           HTTP/1.1
+    307	 Temporary Redirect                  HTTP/1.1
+    400	 Bad Request                         HTTP/1.0
+    401	 Unauthorized                        HTTP/1.0
+    402	 Payment Required                    HTTP/1.1
+    403	 Forbidden                           HTTP/1.0
+    404	 Not Found                           HTTP/1.0
+    405	 Method Not Allowed                  HTTP/1.1
+    406	 Not Acceptable                      HTTP/1.1
+    407	 Proxy Authentication Required       HTTP/1.1
+    408	 Request Time-out                    HTTP/1.1
+    409	 Conflict                            HTTP/1.1
+    410	 Gone                                HTTP/1.1
+    411	 Length Required                     HTTP/1.1
+    412	 Precondition Failed                 HTTP/1.1
+    413	 Request Entity Too Large            HTTP/1.1
+    414	 Request-URI Too Large               HTTP/1.1
+    415	 Unsupported Media Type              HTTP/1.1
+    416	 Requested range not satisfiable     HTTP/1.1
+    417	 Expectation Failed                  HTTP/1.1
+    500	 Internal Server Error               HTTP/1.0
+    501	 Not Implemented                     HTTP/1.0
+    502	 Bad Gateway                         HTTP/1.0
+    503	 Service Unavailable                 HTTP/1.0
+    504	 Gateway Time-out                    HTTP/1.1
+    505	 HTTP Version not supported          HTTP/1.1

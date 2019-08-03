@@ -1,0 +1,99 @@
+#!/usr/local/bin/perl-latest
+# "Error on line 10, column 35" but what file? Print line 10s and column 35s.
+# 7 February 2019
+use strict; use warnings; use Getopt::Long;
+
+my ($line, $column, $skipshort);        # command line
+my ($marker, $len, $fileno);            # internal use
+
+GetOptions( "l|line=i"    => \$line,
+            "c|column=i"  => \$column,
+            "s|skipshort" => \$skipshort);
+# Line 11 ^ column 11
+
+if(!defined($line) or !defined($column)) {
+  die "Need line and column\n";
+}
+
+# length("^-- THIS COLUMN") == length("THIS COLUMN --^") == 15
+if($column < 18) {
+  $marker  = ' ' x ($column - 1);
+  $marker .= "^-- THIS COLUMN\n";
+} else {
+  $marker  = "THIS COLUMN --^";
+  $marker .= ' ' x ($column - length($marker));
+  # easier to swap start and finish
+  $marker =~ s/(.*--.)(.*)/$2$1\n/;
+  #   Line 26, columm 26 ^
+}
+
+for my $file (@ARGV) {
+  if(!open(IN, '<', $file)) {
+    warn "$0: $file: $!\n";
+    next;
+  }
+
+  while(<IN>) {
+    if($. < $line) { next; }
+    last;
+  }
+  close IN;        # important: needed to reset $.
+#          Line 40 ^ column 20
+
+  if(!defined($_)) { next; } # went past end of file
+  if(($len = length($_)) < $column) {
+    next if $skipshort;
+  }
+  $fileno ++;
+
+  print "\n" if $fileno > 1;
+  print "$file\n";
+  print $_;
+  if($len < $column) {
+    print "--> $len chars; shorter than $column\n";
+  } else {
+    print $marker;
+  }
+  next;
+}
+# Line 58 is just one column
+__END__
+
+Test (Newer)
+
+:r! 10-35 -l 40 -c 20 %
+10-35
+  close IN;        # important: needed to reset $.
+     THIS COLUMN --^
+:r! 10-35 -l 11 -c 11 %
+10-35
+            "s|skipshort" => \$skipshort);
+          ^-- THIS COLUMN
+:r! 10-35 -l 26 -c 26 %
+10-35
+  $marker =~ s/(.*--.)(.*)/$2$1\n/;
+           THIS COLUMN --^
+:r! 10-35 -l 58 -c 26 %
+10-35
+}
+--> 2 chars; shorter than 26
+
+Testing (original)
+  $ perl /tmp/10-35 -l 40 -c 20 /tmp/10-35
+  /tmp/10-35
+    close IN;        # important: needed to reset $.
+       THIS COLUMN --^
+  $ perl /tmp/10-35 -l 11 -c 11 /tmp/10-35
+  /tmp/10-35
+  GetOptions( "l|line=i"   => \$line,
+            ^-- THIS COLUMN
+  $ perl /tmp/10-35 -l 52 -c 11 /tmp/10-35
+  /tmp/10-35
+  }
+  --> shorter than 11
+  $ perl /tmp/10-35 -l 26 -c 26 /tmp/10-35
+  /tmp/10-35
+    $marker =~ s/(.*--.)(.*)/$2$1\n/;
+             THIS COLUMN --^
+  $
+

@@ -1,0 +1,57 @@
+standard functions
+---
+vcl_recv
+	return(hash):	Continue processing the object as a potential candidate for caching.
+	return(pass):	Switch to pass mode. (don't cache this one request)
+	       pipe :	Switch to pipe mode. (proxy this connection w/o cache)
+	       purge:	Purge the object and it's variants.
+      synth(status code, reason)
+
+
+vcl_hit
+	Called when a cache lookup is successful. The object being hit may be stale: It can have a zero or negative ttl with only grace or keep time left.
+
+vcl_miss
+	Called after a cache lookup if the requested document was not found in the cache or if vcl_hit returned fetch
+
+vcl_hash
+	Called after vcl_recv to create a hash value for the request. This is used as a key to look up the object in Varnish.
+	The vcl_hash subroutine may only terminate with calling return(lookup)
+
+
+vcl_deliver
+	Called before any object except a vcl_synth result is delivered to the client.
+
+vcl_synth
+	Called to deliver a synthetic object.
+
+
+===
+standard structures
+---
+
+req	request object: the client's request
+bereq	backend request: the request varnish will pass through
+beresp	backend response: the response varnish received
+resp	response object: response varnish will send out
+obj	object from cache (readonly)
+
+===
+standard actions
+---
+
+pass	let the backend handle *this* request
+
+hash	let the cache handle *this* request (even if "pass" would be expected)
+
+pipe	two way pipe to backend
+
+restart	process request over (preserving changes to req object)
+
+retry	ask the backend again
+
+deliver	send object to client
+
+
+
+

@@ -1,0 +1,52 @@
+"
+" Usually I do not want multicolored text; tell vim the terminal
+" doesn't support color
+set t_Co=
+"
+" And get rid of the remaining attempt to show syntax
+syntax off
+"
+" vim's mouse support bugs me
+set mouse=
+"
+" ugh, the horrible things these do to search
+set nohlsearch noincsearch
+"
+" ignore system plugins (well, all really since I don't have any)
+set runtimepath=~/.vim
+"
+" My favorite macro. Lets me type vim/ex commands in the buffer and
+" easily execute them. Uses register y; mnemonic: * marks an executible
+" in `ls -F` output
+map * "yyy@y
+"
+" restore the * search to _ now
+noremap _ *
+"
+" The actual S command seems pretty useless, just 'cc' by another name,
+" so make it split the line on the previous space; mnemonic "Split"
+map S F r<Nl>
+"
+" Double up the character under the cursor; mnemonic: fix "if(x=0)" in C
+map = y p
+"
+" small indents, autoindent, cursor co-ordinates, and a bunch of history
+set sw=2 ai ruler history=200
+"
+" make it terse; in vi (not vim) use "set terse" (which is a bit more terse)
+set shortmess=filnxtToOs
+"
+" deal with a bad default on some systems
+set nobackup
+"
+" backspace through ai's indents and typed new lines, but not past
+" start of insert
+set backspace=indent,eol
+"
+" super handy for pasting formatted code with ai; insert key toggles
+" "set paste" / "set nopaste" (and in xterms, shift-insert does the paste)
+set pastetoggle=<Insert>
+"
+" remove octal style counting from <ctrl-a>/<ctrl-x>: zero padded decimal
+" is safe again
+set nrformats-=octal

@@ -1,0 +1,97 @@
+#!/usr/bin/perl
+# Do-the-right thing MIME decoder.
+# Ideally this just works:
+# 	decoder < input > output 
+# But it can take direction:
+#	-q    --quoted		  input is quoted printable
+#	-b    --base64		  input is base64
+#	-r    --raw		  input is not encoded
+#	-f    --from    CHARSET	  decoded input is not in UTF-8
+#
+# 2018 March 15
+use warnings;
+use strict;
+
+use MIME::Base64;
+use MIME::QuotedPrint;
+use Encode;
+
+my $mode = undef;
+my $iconv = undef;
+my $use = 'UTF-8';
+
+binmode STDOUT;
+
+while(defined($ARGV[0]) and $ARGV[0] =~ m:^-:) {
+    if ($ARGV[0] =~ m:^-(f|-from)$:) {
+      shift; $iconv = shift; next;
+    }
+    if ($ARGV[0] =~ m:^-(b|-base6?4?)$:) {
+      shift; $mode = 'base64'; next;
+    }
+    if ($ARGV[0] =~ m:^-(q|-quote[dprintable-]*)$:) {
+      shift; $mode = 'qp'; next;
+    }
+    if ($ARGV[0] =~ m:^-(r|-raw)$:) {
+      shift; $mode = 'raw'; binmode STDIN; next;
+    }
+    print "$0: unrecognized option\n";
+    print "   decode [{-f|--from} charset] [-b|-q|-r|--quoted|--base64|--raw] [file ...]\n";
+    print "\n";
+    print "Decodes MIME base64 or MIME qp, or just plain text, converting\n";
+    print "from a specified charset (or no conversion) to UTF-8.\n";
+    print "Tries to guess input encoding from first line.\n";
+    exit 1;
+}
+
+$_ = <>;
+    
+if(defined($iconv)) {
+    my $efrom = Encode->getEncoding($iconv) || die "Unknown encoding '$iconv'";
+    my $eto   = Encode->getEncoding($use)   || die "Unknown encoding $use";
+}
+
+if(!defined($mode)) {
+    # safe to do for qp and base64
+    chomp;
+
+    # Has whitespace between non-whitespace? QP
+    # Has =XX encoded characters? QP.
+    # Has an html tag? gonna go with QP.
+    # Is a link? QP
+    if(m#\S\s\S|=[A-Fa-f0-9][A-Fa-f0-9]|<\w+>|https?://#) {
+      $mode = 'qp';
+    }
+    # Sixteen or more base64 characters in a row (and not already
+    # flagged as QP)? Probably b64.
+    # Upper bound is just a safety incase input is all one line
+    elsif(m:[/+0-9A-Za-z]{16,80}:) {
+      $mode = 'base64';
+    }
+    # Time to give up
+    else {
+      print "$0: cannot determine mode, please specify\n";
+      exit 2;
+    }
+}
+
+do {
+   my $out;
+   if($mode eq 'qp') {
+     # decode_qp seems to ignore = at the end of the line for continuation
+     s/=[\r\n]*$//;
+     $out = decode_qp($_);
+   } elsif ($mode eq 'base64') {
+     $out = decode_base64($_);
+   } else {
+     $out = $_;
+   }
+
+   if(defined($iconv)) {
+     # encodes in-place
+     Encode::from_to($out, $iconv, $use, {});
+   }
+   print $out;
+} while(<>)
+
+__END__

@@ -1,0 +1,52 @@
+#!/usr/bin/perl -w
+# Iteratively remove prefixes from a string to find best ASCII
+# interpretation of base64 encoded text.
+# 6 Nov 2014
+use strict;
+
+use vars qw( $l $in @it $encode @try $max $decode $n );
+
+use MIME::Base64;
+
+$encode = $in = shift;
+
+if(!defined($encode)) {
+  print "String to test: ";
+  $encode = $in = <STDIN>;
+}
+
+$encode =~ s/^\s+//;
+
+for $l (0..7) {
+  $_ = decode_base64($encode);
+  $try[$l] = $_;
+  if(length($_)) {
+    $it[$l] = (tr: -~: -~:) / length($_);
+  } else {
+    $it[$l] = 0;
+  }
+
+
+  $encode =~ s/^.//;
+}
+
+$max = 0;
+for $l (0..7) {
+  if($it[$l] > $max) {
+    $n = $l;
+    $max = $it[$l];
+  }
+}
+
+if($max) {
+  $max= sprintf("%4.2f", 100*$max);
+
+  print "Winner: decode of $in\n";
+  print "$max% ASCII, iteration $n\n";
+  print "$try[$n]\n";
+}
+else {
+  print "Decode of $in\n";
+  print "produced no ASCII results.\n";
+}
+

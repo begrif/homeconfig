@@ -1,0 +1,41 @@
+#!/bin/sh
+# screenshot tool
+#    screenshottool [-g] -s [filename]  select a window
+#    screenshottool [-g] -r [filename]  use root window (full screen)
+# -g: then edit with gimp
+# defaults to saving in $HOME/screenshots/
+
+mode=select
+
+args=yes
+while [ $args = yes ] ; do
+    case "X$1" in
+        X-s|X--sel*) mode=select ; shift ;;
+        X-r|X--root) mode=root   ; shift ;;
+        X-g|X--gimp) gimp=gimp   ; shift ;;
+        X-h|X--help) echo "Options: -s : window select; -r root; -g gimp edit"
+                     exit 2 ;;
+        X-*)         echo "$0: unrecognized option: $1"; exit 2 ;;
+        X[^-]*)      args=no             ;;
+        X)           args=no             ;;
+    esac
+done
+
+case "X$1" in
+        X) filename=$(date +"$HOME/screenshots/%Y-%m-%d-%H:%M:%S-$mode.png")
+           mkdir -p $HOME/screenshots/
+           ;;
+        X*) filename="$1" ;;
+esac
+
+xwdarg=
+case "X$mode" in
+        Xroot) xwdarg="-root" ;;
+        X*) sleep 1 ;; # crude fix for "xwd: error: Can't grab the mouse."
+esac
+
+xwd $xwdarg | convert xwd:- "$filename"
+
+if [ "run$gimp" = "rungimp" ] ; then
+  gimp $filename
+fi

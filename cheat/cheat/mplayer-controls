@@ -1,0 +1,16 @@
+<- and ->	Seek backward/forward 10 seconds.
+up and down	Seek backward/forward 1 minute.
+[ and ]		Decrease/increase current playback speed by 10%.
+{ and }		Halve/double current playback speed.
+backspace	Reset playback speed to normal.
+< and >		Go backward/forward in the playlist.
+ENTER		Go forward in the playlist, even over the end.
+p / SPACE	Pause (pressing again unpauses).
+.		Step  forward and pause.
+q / ESC		Stop playing and quit.
+/ and *		Decrease/increase volume.
+m		Mute sound.
+f		Toggle fullscreen (also see -fs).
+T		Toggle stay-on-top (also see -ontop).
+v		Toggle subtitle visibility.
+s		Take a screenshot.  (-vf screenshot only)

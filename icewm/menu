@@ -1,0 +1,24 @@
+# This is an example for IceWM's menu definition file.
+#
+# Place your variants in /etc/icewm or in $HOME/.icewm
+# since modifications to this file will be discarded when you
+# (re)install icewm.
+#
+# keyword ...
+# prog 'Program name' icon executable --options --here
+# separator
+# menu Menuname icon {
+# keyword ...
+# }
+# icons seem to come from
+# /usr/share/app-install/icons/*.png
+prog xterm xterm xterm
+prog Firefox firefox firefox
+separator
+prog Transmission transmission transmission-gtk
+# only LibreOffice icon seems to be: libreoffice-startcenter
+prog LibreOffice okular libreoffice
+# prog Gimp gimp gimp
+prog Inkscape inkscape inkscape
+separator
+menuprog SUSE folder xdg_menu --format icewm

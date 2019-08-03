@@ -1,0 +1,68 @@
+# manually triggered environment setup for interactive use
+# Like $ENV supposed to work in ksh, but manual and thus more portable.
+# In .profile $RC is set up to be the command to source this file
+
+# /etc/profile sometimes makes these colorized
+unalias ls
+unalias grep
+unalias egrep
+unalias fgrep 
+
+alias nice="nice " # expand aliases
+alias make="make " # expand aliases
+
+alias r="fc -e -" # historical magic
+alias v="fc -e - vi" # historical magic
+alias m="fc -e - make" # historical magic
+
+alias script="PS1='SCRIPT> ' script"
+alias L="lynx --force_html"
+alias lynx="lynx -useragent=Lynx/2.8.8rel.2 -image_links -noreferer -accept_all_cookies -cookie_save_file=/dev/null"
+alias jt="jpegtran -copy none"
+alias rot="tr A-Za-z N-ZA-Mn-za-m"
+alias PING='alias ping="/bin/ping -c 5"'
+
+# normalize across distros
+#alias package_search="apt-cache search"
+alias package_search="yum search"
+
+# poor man's ntp: run SETTIME then cut and paste the output on another
+# system (with sudo/root shell)
+alias SETTIME="TZ=PST8PDT date +'date %m%d%H%M%Y.%S'"
+
+PS0='$'			# sometimes will use PS0='#' for root
+PS1=": $USER$PS0 ; " 	# entire prompt is a no-op, to cut-n-paste full lines
+PS2="	"	 	# <tab>, PS2 is used for multiline commands
+export PS1 PS2
+
+tty=`tty`
+if [ "$TERM"x = 'xtermx' ] ; then
+  xtitle $tty
+fi
+HISTFILE=$HOME/.kshrc_history.${tty##*/}
+
+md () {
+  mkdir "$1" && cd "$1"
+}
+
+function frm {
+  case "$1" in
+               '') prog=tail ;;
+    -[123456789]*) prog=tail ;;
+                *) prog=grep ;;
+  esac
+
+  if whence myfrm > /dev/null ; then
+    myfrm | $prog $@
+  else
+    /usr/local/bin/frm | $prog $@
+  fi
+}
+
+sshlist() {
+  for sshhost in $@ ; do ssh $sshhost ; done ; xtitle $(tty)
+}
+
+# default is often core size limited to 0, make it more like 10 million
+ulimit -c 10000000
+

@@ -1,0 +1,24 @@
+root@fishtank:/var/discourse# ./launcher enter app
+root@fishtank-app:/var/www/discourse# rails c
+[1] pry(main)> User.where(username: 'ä')
+=> []
+
+[25] pry(main)> EmailLog.find_by(id:15).update(bounce_key: 'asdfghjkl')
+=> true
+[26] pry(main)> EmailLog.find_by(id:15)
+=> #<EmailLog:0x00556163f205e8
+ id: 15,
+ to_address: "gggg@mmmm.fooo",
+ email_type: "user_private_message",
+ user_id: 3,
+ created_at: Tue, 18 Jul 2017 02:35:04 UTC +00:00,
+ updated_at: Tue, 18 Jul 2017 02:42:37 UTC +00:00,
+ reply_key: nil,
+ post_id: 49,
+ topic_id: 28,
+ skipped: false,
+ skipped_reason: nil,
+ bounce_key: "asdfghjkl",
+ bounced: false,
+ message_id: "topic/28@try.begriffin.com">
+

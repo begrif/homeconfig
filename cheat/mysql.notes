@@ -1,0 +1,341 @@
+
+create table fof_item_track_match_status (
+  id int not null primary key auto_increment,
+  item_id int(11),
+  status_id int(11)
+);
+
+# find number of items per status
+select status_id, count(item_id) from
+	fof_item_track_match_status GROUP BY status_id;
++-----------+----------------+
+| status_id | count(item_id) |
++-----------+----------------+
+|         0 |         350970 |
+|         1 |         141150 |
+|         2 |         509778 |
+|         3 |          12382 |
++-----------+----------------+
+
+# it looks like you can set multiple values
+SELECT @name := thing FROM limbs WHERE legs = 0;
++----------------+
+| @name := thing |
++----------------+
+| squid          |
+| octopus        |
+| fish           |
+| phonograph     |
++----------------+
+
+But really just the last one is used:
+
+SELECT @name;
++------------+
+| @name      |
++------------+
+| phonograph |
++------------+
+
+Select into a variable:
+
+SELECT INET_NTOA(network) AS network INTO @network FROM bluuu_networks
+	WHERE INET_ATON(ip_address) BETWEEN network AND last_ip;
+
+
+
+
+PLEASE REMEMBER TO SET A PASSWORD FOR THE MySQL root USER !
+To do so, start the server, then issue the following commands:
+./bin/mysqladmin -u root password 'new-password'
+./bin/mysqladmin -u root -h HOSTNAME password 'new-password'
+
+You can start the MySQL daemon with:
+cd $BUILDDIR ; ./bin/mysqld_safe &
+
+: root; bin/mysql -p database
+# enter password
+mysql> SHOW DATABASES;
+# show databases available
+mysql> select DATABASE();
+# Returns the current database name
+mysql> DESCRIBE table;
+# see table structure;
+mysql> SHOW VARIABLES;
+# see variables
+mysql> SHOW TABLES;
+# see tables in the current db
+mysql> SHOW GRANTS FOR user;
+# see user privs
+mysql> UPDATE user SET Password=PASSWORD('oas-1')
+    ->  WHERE user='oasuser@localhost';
+# set password
+mysql> USE database
+# select db, note no semicolon needed
+mysql> SELECT User,Host FROM mysql.user;
+# show users & their hosts
+mysql> SELECT * FROM mysql.user;
+# show everything in mysql.user 
+
+
+mysql> CREATE USER 'typo3'@'localhost';
+mysql> CREATE USER 'typo3'@'kinks';
+
+mysql> UPDATE user SET Password=PASSWORD('08Jan02')
+    -> WHERE user='typo3@localhost';
+mysql> UPDATE user SET Password=PASSWORD('08Jan02')
+    -> WHERE user='typo3@kinks';
+
+mysql> UPDATE mysql.user SET Password=PASSWORD('08Jan02')
+    -> WHERE user='typo3';
+
+mysql> CREATE DATABASE typo3db;
+
+mysql> GRANT ALL PRIVILEGES ON typo3db.* to typo3@localhost
+    -> IDENTIFIED BY '08Jan02' WITH GRANT OPTION;
+mysql> GRANT ALL PRIVILEGES ON typo3db.* to typo3@kinks
+    -> IDENTIFIED BY '08Jan02' WITH GRANT OPTION;
+
+
+CREATE USER 'grumble_user'@'web-dev-401.internal.grumble.com';
+UPDATE mysql.user SET Password=PASSWORD('b4J=bZ^>NxkudoC@')
+	WHERE user='grumble_user'@'web-dev-401.internal.grumble.com';
+GRANT SELECT, INSERT, UPDATE PRIVILEGES ON grumble_production.*
+ TO 'grumble_user'@'web-dev-401.internal.grumble.com';
+
+ IDENTIFIED BY '08Jan02' 'b4J=bZ^>NxkudoC@';
+
+FLUSH PRIVILEGES;
+
+---
+create table fof_item_track_match_status (
+  id int not null primary key auto_increment,
+  item_id int(11),
+  status_id int(11)
+);
+
+# find number of items per status
+select status_id, count(item_id) from
+	fof_item_track_match_status GROUP BY status_id;
+
+status__matched = 1;
+status__nomatch = 0;
+status__skipped = 2;
+status__error   = 3;
+
+create database acr;
+use acr
+create table idtranslator (
+  id int not null primary key auto_increment,
+  translation varchar(100)
+);
+
+CREATE USER 'readacr'@'localhost';
+CREATE USER 'writeacr'@'localhost';
+UPDATE mysql.user SET Password=PASSWORD('acr.read') WHERE user='readacr';mysql> UPDATE mysql.user SET Password=PASSWORD('acr.write') WHERE user='writeacr';
+GRANT ALL PRIVILEGES ON acr.* to 'readacr'@'localhost';
+GRANT ALL PRIVILEGES ON acr.* to 'writeacr'@'localhost';
+FLUSH PRIVILEGES;
+
+------
+create database grumble_twitter;
+use grumble_twitter;
+
+CREATE TABLE `twitter_auth` (
+	`user_id` int(11) NOT NULL auto_increment,
+        `first_name` varchar(255) character set utf8 collate utf8_unicode_ci NOT NULL,
+	`last_name` varchar(255) character set utf8 collate utf8_unicode_ci NOT NULL,
+	`username` varchar(255) character set utf8 collate utf8_unicode_ci NOT NULL,
+	`password` varchar(255) character set utf8 collate utf8_unicode_ci NOT NULL,
+	`company` varchar(255) character set utf8 collate utf8_unicode_ci default NULL,
+	`expires` datetime default NULL,
+	`created` datetime NOT NULL,
+	`updated` timestamp NOT NULL default CURRENT_TIMESTAMP,
+	PRIMARY KEY  (`user_id`)
+    ) ENGINE=MyISAM AUTO_INCREMENT=71 DEFAULT CHARSET=utf8 ;
+
+INSERT INTO `twitter_auth` VALUES
+  (1,'Dangle','Yammer','dyammer@grumble.com',
+    '$1$dlC4Z943$4gMtalkinggLX11hN5y2q0','Grumble',
+    '2020-01-31 00:00:00','2011-06-06 12:51:43','0000-00-00 00:00:00'
+  ),
+  (2,'Choosen','Chew','cchew@grumble.com',
+    '$1$QO20pZpm$YpBgumstickjXHRE1/Qp2/','Grumble',
+    '2014-03-01 00:00:00','2011-06-06 13:25:03','2011-06-07 03:25:03'
+  ),
+  (3,'Virginia','Doublemint','vdoublemint@grumble.com',
+    '$1$2/Yo7mtR$xsRMAKY/gumball0iTUYq/','Grumble',
+    '2013-02-01 00:00:00','2011-06-06 13:27:25','2011-06-07 03:27:25'
+  );
+
+
+CREATE USER 'gracetwit'@'web-stage-401';
+UPDATE mysql.user SET Password=PASSWORD('****** End of newsgroups -- what next? [npq]')
+	where user='gracetwit';
+GRANT  SELECT, INSERT, UPDATE, DELETE
+	on grumble_twitter.*
+	to 'twit'@'web-stage-401';
+FLUSH PRIVILEGES;
+
+CREATE TABLE `submit_table` (
+	`submit_id` int(11) NOT NULL auto_increment,
+	`user_id` int(11),
+	`created` timestamp default 0,
+	`updated` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+	`submit_state` varchar(31) character set ascii NOT NULL,
+	`form_type` varchar(31) character set ascii NOT NULL,
+	`eula_version` varchar(31) character set ascii NOT NULL,
+	PRIMARY KEY  (`submit_id`)
+    ) ENGINE=MyISAM AUTO_INCREMENT=71 DEFAULT CHARSET=utf8 ;
+
+CREATE TABLE `submit_value_table` (
+	`submit_value_id` int(11) NOT NULL auto_increment,
+	`submit_id` int(11) NOT NULL,
+	`created` timestamp default 0,
+	`updated` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+	`submit_value_type` varchar(31) character set ascii NOT NULL,
+	`submit_value_state` varchar(31) character set ascii NOT NULL,
+	`submit_value_int` int(11),
+	`submit_value_name` varchar(140) character set utf8 collate utf8_unicode_ci NOT NULL,
+	`submit_value_text` varchar(255) character set utf8 collate utf8_unicode_ci default NULL,
+	`submit_value_extra` varchar(255) character set utf8 collate utf8_unicode_ci default NULL,
+	`submit_value_blob` blob default NULL,
+	PRIMARY KEY  (`submit_value_id`)
+    ) ENGINE=MyISAM AUTO_INCREMENT=71 DEFAULT CHARSET=utf8 ;
+
+alter table submit_value_table
+MODIFY submit_value_blob	mediumblob default null;
+#      name             	type, etc
+
+
+alter table twitter_auth
+add COLUMN email varchar(255) character set utf8 collate utf8_unicode_ci after username,
+add COLUMN bd_category varchar(255) character set utf8 collate utf8_unicode_ci after company,
+add COLUMN last_login datetime after expires;
+
+CREATE TABLE `submit_value_types_table` (
+	`submit_value_type_id` int(11) NOT NULL auto_increment,
+	`submit_value_desc` varchar(31) character set ascii NOT NULL,
+	PRIMARY KEY  (`submit_value_type_id`)
+    ) ENGINE=MyISAM AUTO_INCREMENT=71 DEFAULT CHARSET=utf8 ;
+
+# set created (timestamp) to be NULL, and mysql makes it current time
+# update row and updated timestamp (DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP) updates 
+INSERT INTO submit_table
+	(`created`, `user_id`, `form_type`, `submit_state`)
+	values (NULL, 13, 'music', 'new');
+
+update submit_table set submit_state='submitted' where submit_id=71;
+
+select * from submit_table where submit_state='saved';
+
+select count(*) from submit_value_table where submit_id=1545;	= 8
+select count(*) from submit_value_table where submit_id=1546;	= 1
+
+select submit_value_type, submit_value_int, submit_value_name, submit_value_text from submit_value_table where submit_id=
+
+CREATE USER 'gracetwit'@'web-3';
+CREATE USER 'gracetwit'@'web-503';
+CREATE USER 'gracetwit'@'web-4';
+CREATE USER 'gracetwit'@'web-504';
+CREATE USER 'twitdump'@'bgriffin-unx.internal.grumble.com';
+UPDATE mysql.user SET Password=PASSWORD('140characters+counting')
+  where user='twitdump';
+GRANT  SELECT,UPDATE on grumble_twitter.*
+	to 'twitdump'@'bgriffin-unx.internal.grumble.com';
+
+UPDATE mysql.user SET Password=PASSWORD('zTTltitter2O-Aq1sdVAg')
+	where user='twit';
+GRANT  SELECT, INSERT, UPDATE, DELETE
+	on grumble_twitter.*
+	to 'gracetwit'@'%';
+GRANT  SELECT, INSERT, UPDATE, DELETE
+	on grumble_twitter.*
+	to 'gracetwit'@'10.11.68.24';
+GRANT  SELECT, INSERT, UPDATE, DELETE
+	on grumble_twitter.*
+	to 'gracetwit'@'web-503-out.rw-sac.grumble.com';
+GRANT  SELECT, INSERT, UPDATE, DELETE
+	on grumble_twitter.*
+	to 'gracetwit'@'web-504.rw-sac.grumble.com';
+FLUSH PRIVILEGES;
+
+------
+
+CREATE USER 'qcd'@'10.8.132.13';
+
+UPDATE mysql.user SET Password=PASSWORD('gold$e8z')
+  where user='qcd';
+
+GRANT SELECT
+	on qcd.*
+	to 'qcd'@'%';
+
+FLUSH PRIVILEGES;
+
+
+------
+
+http://dev.mysql.com/doc/refman/5.1/en/select-into.html
+
+
+SELECT a,b,a+b INTO OUTFILE '/tmp/result.txt'
+
+  FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"'
+
+    LINES TERMINATED BY '\n'
+            
+	      FROM test_table; 
+
+------
+
+create database anagramhunt;
+use anagramhunt;
+
+CREATE TABLE `anagram_source` (
+	`source_id` int(11) NOT NULL auto_increment,
+        `source_name` varchar(255) character set utf8 collate utf8_unicode_ci NOT NULL,
+	`source_notes` varchar(255) character set utf8 collate utf8_unicode_ci default NULL,
+	`added` timestamp NOT NULL default CURRENT_TIMESTAMP,
+	PRIMARY KEY  (`source_id`)
+    ) ENGINE=MyISAM DEFAULT CHARSET=utf8 ;
+
+CREATE TABLE `anagram_string` (
+	`string_id` int(11) NOT NULL auto_increment,
+	`source_id` int(11) NOT NULL,
+	`e_count` int(11) NOT NULL,
+	`letter_count` int(11) NOT NULL,
+        `it` varchar(1020) character set utf8 collate utf8_unicode_ci NOT NULL,
+	PRIMARY KEY  (`string_id`)
+    ) ENGINE=MyISAM DEFAULT CHARSET=utf8 ;
+
+
+
+old style change password
+ SET PASSWORD FOR 'bindrepl'@'some-host-here' = PASSWORD('c00lpa55word');
+new style (5.7.6 and up) change password
+ ALTER USER 'bindrepl'@'some-host-here' IDENTIFIED BY 'c00lpa55word';
+
+copy a password, eg some creds everywhere for a user
+ UPDATE mysql.user SET Password='encryptedstring' WHERE user='username';
+
+create table fof_item_track_match_status (
+  id int not null primary key auto_increment,
+  item_id int(11),
+  status_id int(11)
+);
+
+# find number of items per status
+select status_id, count(item_id) from
+        fof_item_track_match_status GROUP BY status_id;
+
+SELECT `ttl`, `type`, `host`, `mx_priority`
+   ,SUBSTRING_INDEX(                 `data`, ' ', 1)           AS `data`
+   ,SUBSTRING_INDEX( SUBSTRING_INDEX(`data`, ' ', 2), ' ', -1) AS `resp_person`
+   ,SUBSTRING_INDEX( SUBSTRING_INDEX(`data`, ' ', 3), ' ', -1) AS `serial`
+   ,SUBSTRING_INDEX( SUBSTRING_INDEX(`data`, ' ', 4), ' ', -1) AS `refresh`
+   ,SUBSTRING_INDEX( SUBSTRING_INDEX(`data`, ' ', 5), ' ', -1) AS `retry`
+   ,SUBSTRING_INDEX( SUBSTRING_INDEX(`data`, ' ', 6), ' ', -1) AS `expire`
+   ,SUBSTRING_INDEX( SUBSTRING_INDEX(`data`, ' ', 7), ' ', -1) AS `minimum`
+FROM `bind` WHERE `zone`='%zone%'
+              AND `type`='SOA';

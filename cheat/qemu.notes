@@ -1,0 +1,52 @@
+# mount the virtual /dev/sda of a qcow image readonly
+# (note: can take several seconds)
+guestmount -a xenserver.qcow2 -m /dev/sda1 --ro /mnt 
+
+# find mount points
+guestfish -a xenserver.qcow2 --ro
+><fs> run
+><fs> list-filesystems
+...
+><fs> quit
+
+(run does not boot up the system)
+
+
+# umount it
+umount /mnt
+# or
+guestunmount /mnt
+
+see also http://ask.xmodulo.com/mount-qcow2-disk-image-linux.html
+
+https://www.randomhacks.co.uk/how-to-recover-fsck-a-qcow2-file/
+
+# simple commands
+# command={start|shutdown|autostart|reset|dumpxml|destroy|undefine|console}
+virsh -c qemu:///system $command SERVER
+
+# complete wipe
+alias vsh=virsh\ -c\ qemu:///system
+vsh shutdown SERVER
+    destroy  SERVER
+    undefine SERVER
+
+virsh -c qemu:///system list [ --all | --inactive ] [--name]
+
+virsh -c qemu:///system			# enter shell
+  domblklist SERVER			# list attached media
+  change-media SERVER hdc --eject	# "eject" a "cd-rom"
+  change-media SERVER hdc /file/name --insert
+
+vsh dumpxml SERVER > tmpfile
+ ... edit tmpfile ...
+vsh define tmpfile
+
+# increase RAM
+# (default here is 4194304KiB)
+virsh setmaxmem slc-integration-bicron01 8388608KiB --config
+... shutdown server
+virsh setmem slc-integration-bicron01 8388608KiB --config
+... start server
+
+ram=12582912KiB

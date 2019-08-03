@@ -1,0 +1,28 @@
+# This is an example for IceWM's window options file.
+#
+# Place your variants in /etc/icewm or in $HOME/.icewm
+# since modifications to this file will be discarded when you
+# (re)install icewm.
+#
+xterm.icon: xterm
+
+XClock.ignoreQuickSwitch: 1
+XClock.allWorkspaces: 1
+XClock.ignoreWinList: 1
+XClock.ignoreTaskBar: 1
+XClock.dTitleBar: 1
+
+XBiff.allWorkspaces: 1
+Xbiff.allWorkspaces: 1
+xbiff.allWorkspaces: 1
+xbiff.ignoreWinList: 1
+xbiff.ignoreTaskBar: 1
+# xbiff.dTitleBar: 1
+
+XLoad.allWorkspaces: 1
+XLoad.ignoreWinList: 1
+XLoad.ignoreTaskBar: 1
+
+Firefox.Workspace: 2
+
+#Vim.icon: vim

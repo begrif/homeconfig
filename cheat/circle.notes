@@ -1,0 +1,22 @@
+CIRCLES
+pi     = 3.1416
+circum = pi*2*radius
+circum = pi*diameter
+diameter = circum/pi
+radius = circum/pi/2
+
+HEIGHT OF CONE
+radius is radius of bottom circle
+circum is circumfrence of bottom circle
+full is circumfrence of pac-man's circle
+hypot is radius of flat paper circle (pac-man shape)
+percent is part of flat paper circle removed (pac-man mouth)
+angle is portion of flat paper circle removed (pac-man mouth)
+
+height = sqrt(hypot*hypot - radius*radius)
+hypot  = sqrt(height*height + radius*radius)
+radius = sqrt(hypot*hypot - height*height)
+circum = pi*2*radius
+full   = pi*2*hypot
+portion = 1 - circum/full
+angle  = 360 * portion

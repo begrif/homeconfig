@@ -1,0 +1,29 @@
+#!/bin/sh
+# run programs from lemonbar
+# https://github.com/LemonBoy/bar
+#
+# usage:   lemonlaunch programid
+# Or, in lemonbar syntax:
+#    %{A:lemonlaunch programid:} Program Button Text %{A}
+#
+# June 2019
+
+program="${1}"
+
+# put new processes in a separate process group
+set -m
+
+case "$program" in
+      xterm) exec xterm -geometry 100x24                                 & ;;
+      xlock) exec xlock -mode coral                                      & ;;
+      firefox) exec firefox -ProfileManager                              & ;;
+      newfirefox) exec firefox -ProfileManager -no-remote                & ;;
+      windowshot) exec screenshottool -s                                 & ;;
+      fullscrshot) exec screenshottool -r                                & ;;
+      windowshotgimp) exec screenshottool -s -g                          & ;;
+      fullscrshotgimp) exec screenshottool -r -g                         & ;;
+
+      *) echo "Unconfigured program: $program"
+         echo "$0: Unconfigured program: $program" >&2
+         ;;
+esac

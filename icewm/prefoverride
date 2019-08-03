@@ -1,0 +1,15 @@
+# preferences applied after theme
+#  Titlebar buttons from right to left (x=close,  m=max,  i=min,  h=hide, r=rollup,       s=sysmenu,      d=depth)
+# now in beg theme
+# TitleButtonsRight="xr"
+
+
+TitleBarMaximizeButton=5 # [0-5]
+TitleBarRollupButton=0 # [0-5]
+
+KeyWinRaise="Super+Prior"	# prior = page up
+KeyWinLower="Super+Next"	# next = page down
+KeySysWorkspace1="Super+1"
+KeySysWorkspace2="Super+2"
+KeySysWorkspace3="Super+3"
+KeySysWorkspace4="Super+4"

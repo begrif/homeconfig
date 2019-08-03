@@ -1,0 +1,15 @@
+http://docs.docker.com/linux/
+
+docker images		list available images
+docker run hello-world	run "hello-world" container
+docker ps		list running containers
+docker ps -a		list all containers
+docker stop ID [ ID ]	stop containers
+docker kill ID [ ID ]	kill containers
+docker rm   ID [ ID ]	remove containers
+docker rmi  ID [ ID ] 	uninstall images
+docker exec -it IMAGENAME /bin/ksh	run ksh inside IMAGENAME (-it: use tty)
+
+docker build -t imagetitle DIRNAME	build an image described in DIRNAME/Dockerfile
+docker build -t imagetitle .		same, but run from cwd DIRNAME
+

@@ -1,0 +1,42 @@
+#!/usr/bin/perl 
+# shamelessly hijacked from
+# https://perlmaven.com/how-to-read-a-csv-file-using-perl
+# 5 Dec 2016
+
+use strict;
+use warnings;
+ 
+BEGIN{ push(@INC, '/net/u/3/e/eli/lib/lib/perl5/site_perl/5.14.4'); }
+
+use Text::CSV;
+ 
+my $file = $ARGV[0] or die "usage: csvtotsv CSVFILE > TSVFILE\n";
+ 
+my $csv = Text::CSV->new ({
+  binary    => 1,
+  auto_diag => 1,
+  sep_char  => ','    # not really needed as this is the default
+});
+ 
+binmode(STDOUT, ':utf8');
+
+open(my $data, '<:encoding(utf8)', $file) or die "Could not open '$file' $!\n";
+while (my $fields = $csv->getline( $data )) {
+  my $fc = $#${fields};
+  my $i;
+  my $out = '';
+  for ($i = 0; $i <= $fc; $i++) {
+     $_ = $fields->[$i];
+     chomp;
+     s/\\/\\\\/g;
+     s/\n/\\n/gs;
+     s/\t/\\t/gs;
+     $out .= "$_\t";
+  }
+  $out =~ s/\t$/\n/;
+  print $out;
+}
+if (not $csv->eof) {
+  $csv->error_diag();
+}
+close $data;

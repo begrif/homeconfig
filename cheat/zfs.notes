@@ -1,0 +1,10 @@
+List volumes (ZVOLs)
+  zfs list
+
+List pools
+  zpool list
+
+Check for disk issues in pools
+  zpool status
+
+

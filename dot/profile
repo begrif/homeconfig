@@ -1,0 +1,70 @@
+
+export LANG=en_US.UTF-8
+export LC_COLLATE=C
+
+addpath () {
+  case ":$PATH:" in
+     *:$1:*) : already on path ;;
+          *) case ":$2:" in
+               :end:) PATH=$PATH:$1 ;;
+                   *) PATH=$1:$PATH ;;
+             esac
+             ;;
+  esac
+}
+
+for dir in $HOME/bin ; do
+  if [ -d $dir ] ; then
+    addpath $dir
+  fi
+done
+
+for dir in $HOME/usr/bin ; do
+  if [ -d $dir ] ; then
+    addpath $dir end
+  fi
+done
+
+case "$-" in *i*) # only run on interactive shells
+
+  if [ "X$TERM" = Xlinux ] ; then
+    # on console!
+    echo X alias added
+    alias X='(date +"X starting at %c"; startx; date +"X end at %c" ) > $HOME/.X.out 2>&1'
+
+    eval `ssh-agent | tee $HOME/.ssh-agent.last`
+    echo "SSH agent started"
+    ssh-add $HOME/.ssh/*_rsa
+  fi
+
+  if whence screen >/dev/null; then
+    printf "screen: "
+    screen -ls
+    alias SRD="screen -R -D"
+  fi
+  if whence tmux >/dev/null; then
+    printf "tmux: "
+    tmux list-sessions
+    alias TRD="tmux attach -d || tmux new-session "
+  fi
+
+  # Some GUI programs think I want to save junk
+  trash=$HOME/.local/share/Trash
+  if [ -d $trash ] ; then
+    printf "removing trash -- size "
+    du -sh $trash
+    rm -rf $trash
+  fi
+
+  export EDITOR=vim
+  export VISUAL=vim
+  export RC=". $HOME/.interactive" ; $RC
+  : e $HOME/.interactive
+
+  # control characters as alias left-hand-side! Make the terminal backspace
+  # the "real" backspace.
+  alias ="stty erase '^?'"
+  alias ="stty erase '^H'"
+  set -o vi
+
+;; esac # interactive shell wrapper

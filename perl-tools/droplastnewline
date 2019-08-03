@@ -1,0 +1,14 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $line = '';
+
+while (<>) {
+  print $line;
+  $line = $_;
+}
+
+chomp $line;
+print $line;
+__END__

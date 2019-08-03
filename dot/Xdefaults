@@ -1,0 +1,106 @@
+! no apostrophes, they break some parsers
+! Benjamins mods
+
+! fix to allow remapping of + on keypad
+XTerm*shiftFonts: false
+
+! Scrolling on wheel mouse: half a page normally, line per line with shift,
+! page by page with alt.
+! use ctrl scroll to shift font sizes, ala Firefox
+! Default translastion for shift-insert:
+! Shift <KeyPress> Insert:insert-selection(SELECT, CUT_BUFFER0)
+! Default translastion for button 2 paste:
+! ~Ctrl ~Meta <Btn2Up>:insert-selection(SELECT, CUT_BUFFER0)
+! Also add an alternative for ctrl-shift-insert, and shift-button-2
+! f1: "$RC\n"
+! f2: "#h\n"    dumphtml vi macro
+! f2: "#M\n"    de-base64 vi macro
+! shift keypad +: for = on the keypad
+! keynames from /usr/include/X11/keysymdef.h (remove "XK_")
+XTerm.vt100.translations: #override                                    \n\
+ Alt<Btn4Down>,<Btn4Up>:scroll-back(1,page)                            \n\
+ Alt<Btn5Down>,<Btn5Up>:scroll-forw(1,page)                            \n\
+ <Btn4Down>,<Btn4Up>:scroll-back(1,halfpage)                           \n\
+ <Btn5Down>,<Btn5Up>:scroll-forw(1,halfpage)                           \n\
+ Shift<Btn4Down>,<Btn4Up>:scroll-back(1,line)                          \n\
+ Shift<Btn5Down>,<Btn5Up>:scroll-forw(1,line)                          \n\
+ Ctrl<Btn4Down>,<Btn4Up>:larger-vt-font()                              \n\
+ Ctrl<Btn5Down>,<Btn5Up>:smaller-vt-font()                             \n\
+ Shift~Ctrl<Btn2Up>:  insert-selection(CLIPBOARD, CUT_BUFFER1)         \n\
+ Shift<BtnUp>:        select-end(CLIPBOARD, CUT_BUFFER1)               \n\
+ Shift Ctrl <KeyPress> Insert: insert-selection(CLIPBOARD, CUT_BUFFER1)\n\
+ <Key>F1: string("$RC") string(0x0d)                                   \n\
+ <Key>F2: string("#h") string(0x0d)                                    \n\
+ <Key>F3: string("#M") string(0x0d)                                    \n\
+ <Key>F4: string("#J")                                                 \n\
+ Shift <Key>KP_Add: string("=")                                        \n\
+
+! this did nothing:
+! vi-button should issue a sequence to move the cursor to the line clicked on
+! Alt <Btn1Up>: vi-button() \n
+
+!# In the scrollbar we map buttons 5 & 4 to 1 and 2 otherwise, core dump
+!# This will move proportionnaly to cursor position but we dont know how to
+!# program the same exact behavior as in the text widget.
+XTerm.vt100.Scrollbar.translations: #override\n\
+     <Btn5Down>: StartScroll(Forward)\n\
+     <Btn4Down>: StartScroll(Backward)\n\
+
+XTerm*highlightSelection:  true
+XTerm*scrollBar:  true
+
+! This resource specifies whether or not to ignore the "alternate screen"
+! of applications such as vi.  When it is on, these applications will restore
+! the contents of the screen when they are exited to what they were before
+! they were started.  When it is off, the contents of vi will remain on the
+! screen after the program is quit.
+XTerm.VT100.titeInhibit:  true
+
+! Uncomment this to turn off color mode in your xterms
+XTerm.VT100*dynamicColors:  on
+XTerm*saveLines:        5000
+XTerm*reverseWrap:      true
+XTerm*appkeypadDefault: false
+XTerm*cutNewline:       false
+XTerm*underline:        true
+XTerm*rightScrollBar:   true
+XTerm*scrollKey:        true
+XTerm*scrollTtyOutput:  false
+XTerm*utf8:             1
+! this defines what is a "word" for double-click purposes, I include
+! : and / so that "https://fooo.baar/jdjd?this=that" will select the
+! "https://fooo.baar/jdjd" bit on a double-click
+XTerm*charClass:         45-47:48,58:48,64:48
+! Use colors for bold? reverse? underline?
+XTerm*colorBDMode:      false
+XTerm*colorRVMode:      false
+XTerm*colorULMode:      false
+! Xterm colors
+XTerm*pointerColor:     white
+XTerm*pointerColorBackground:   black
+XTerm*highlightColor:   lightgray
+XTerm*Background:       black
+XTerm*Foreground:       lightgray
+XTerm*Scrollbar.Foreground:     gray20
+XTerm*Scrollbar.Background:     gray90
+XTerm*Scrollbar.thickness: 10
+
+*visualBell:            true
+*scrollTtyOutput:       False
+*scrollKey:             True
+Scrollbar.JumpCursor:   True
+
+! gv defaults to "A4" for some reason
+Ghostview.pageMedia: Letter
+
+! xpdf
+Xpdf.initalZoom: width
+
+xfig*paper_size: Letter
+xfig*splash: false
+
+! xterm -name XplicitTerm
+XplicitTerm*scrollBar:  true
+XplicitTerm*Background: lightgray
+XplicitTerm*Foreground: black
+

@@ -1,0 +1,118 @@
+git clone user@host:/repo
+
+git branch branch-name		create branch
+git checkout branch-name	switch to branch
+git checkout -b branch-name	create AND switch to branch
+git checkout -- path/to/file	revert file to last commited version
+git branch			list branches (* marks current)
+
+git mv oldname newname
+git rm removefile
+
+git add	file [file ...]		specify file(s) to add to next commit
+git reset file/name		undo an add (revert / unadd) before commit
+
+git commit			enter a change notice for a change
+git commit -a			same as commit, but with automatic changed
+				file detection
+
+git checkout -b 'bgriffin/slc-archiva' && \
+   git commit -am 'SLC archiva host' && \
+   git push origin bgriffin/slc-archiva
+
+git push			push change to external git server
+git push --set-upstream origin branch-name	set default external server
+
+git init project		create a new git repo named project as subdir
+
+git diff --no-color master	show diffs in the current branch, relative to
+				master
+
+git diff filename		show diffs *prior to* "git add"
+git diff --cached filename	show diffs *after* "git add"
+git diff HEAD~1 filename	show diffs *after* "git commit"
+
+git fetch && git pull		(or "git pull origin master") "fast forward"
+
+create a new repo
+	git init project-name
+	cd project-name
+	echo '*.swp' > .gitignore
+	vi README.md
+	git add .
+	git commit -m "Initial commit"
+	git remote add origin ${some-git-path}
+	git push -u origin master
+
+remote branch
+	git fetch	# make sure things are up to date
+	git branch -r	# show remote branches
+	# REMOTENAME/branch-name
+	git checkout --track origin/password-ip-mail
+
+make all remote branches also local ones
+	for branch in $(git branch  -a |grep remotes | grep -v /master); do
+	  git checkout master; git checkout -b ${branch##*/} $branch
+	done
+
+make a local clone of a public project
+	git clone https://github.com/foo/bar
+	git remote rename origin upstream
+	git remote add origin git@slc-core-github01.bluuu.com:foo/bar.git
+	git push --all origin
+
+------
+https://stackoverflow.com/questions/372506/how-can-i-search-git-branches-for-a-file-or-directory
+	git log --all -- path/to/file
+	git log --all -- '**/file'
+	# gets you a commit id
+	git branch -a --contains ABCDEFcommitid
+
+
+	# other git log tricks: find all sql files from me in a branch
+	git log --grep='branch' --author='me' -- *.sql
+------
+https://stackoverflow.com/questions/927358/how-to-undo-the-last-commits-in-git
+    $ git commit -m "Something terribly misguided"              (1)
+    $ git reset HEAD~                                           (2)
+         << edit files as necessary >>                          (3)
+    $ git add ...                                               (4)
+    $ git commit -c ORIG_HEAD                                   (5)
+
+Also 'git commit --amend' can fix a bad commit message
+------
+Syncing a fork
+https://help.github.com/articles/syncing-a-fork/
+
+git remote -v			list origin and upstream
+	fix missing upstream:
+	git remote add upstream https://github.com/.../foo.git
+
+git fetch upstream		fetch from upstream
+
+	all changes must be committed before switch: git status
+git checkout master		switch to master
+
+git merge upstream/master	now merge local master with upstream
+------
+Merging
+
+git checkout branch-to-change	switch to the branch to be updated
+git merge from-branch		name the branch to get updates from
+
+merge *files* to a different branch:
+
+git commit # (on sourcebranch)
+git checkout destinationbranch
+git checkout sourcebranch file/to/merge
+
+merge *commits* to a different branch
+git cherrypick somethingsomething
+------
+General 5 step contribution method
+1   Fork it
+2   Create your feature branch (git checkout -b my-new-feature)
+3   Commit your changes (git commit -am 'Add some feature')
+4   Push to the branch (git push origin my-new-feature)
+5   Create new Pull Request
+

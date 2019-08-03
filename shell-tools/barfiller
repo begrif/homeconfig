@@ -1,0 +1,132 @@
+#!/bin/ksh
+# derived from https://wiki.archlinux.org/index.php/Lemonbar
+#
+# Lemonbar: https://github.com/LemonBoy/bar
+#
+# lemonbar puts a bar on the screen, which displays the text piped into it.
+#   ( example-bar-filler.sh | lemonbar ) &
+#
+# lemonbar uses the following commands to color the text, background or the
+# under/overline. Colors can be specified via the formats #RRGGBB, #AARRGGBB
+# (with an alpha channel; this requires a compositor to be running), or even
+# #RGB.
+#
+# Command       Meaning
+# %{Fcolor}     Use color as the foreground/font color
+# %{Bcolor}     Use color as the background
+# %{Ucolor}     Use color for under/overlining the text
+# Text alignment
+#
+# lemonbar also supports alignment of text. It uses the following commands to align the text
+# Command       Meaning
+# %{l}  Aligns the text to the left
+# %{c}  Aligns the text to the center
+# %{r}  Aligns the text to the right
+#
+# %{Abutton:command:} Display text %{A}
+#       when mouse button "button" (1 to 5, default 1) is clicked on "Display text" run
+#       "command"
+#       Nested clickable areas can trigger different commands, eg, do different things
+#       with different buttons. %{A1:left-click}%{A3:right}-click-button%{A}%{A}
+
+clicktool=$HOME/bin/lemonlaunch
+
+# Define the clock
+Clock() {
+        DATETIME=$(date "+%a %b %d %T")
+        echo -n " $DATETIME "
+}
+
+# System load
+Uptime() {
+        UPTIME=$(uptime | sed 's/.*average: //')
+        echo -n " $UPTIME "
+}
+
+# note all literal % doubled for printf
+
+# color changers
+White1()        { printf "%%{F#000000}%%{B#DDDDDD}" ;}
+Black1()        { printf "%%{F#DDDDDD}%%{B#000000}" ;}
+Red1()          { printf "%%{F#00FFFF}%%{B#FF0000}" ;}
+Green1()        { printf "%%{F#FF00FF}%%{B#00FF00}" ;}
+Blue1()         { printf "%%{F#FFFF00}%%{B#0000FF}" ;}
+Blue2()         { printf "%%{F#F0F040}%%{B#4040FF}" ;}
+DefaultColors() { printf "%%{F-}%%{B-}"             ;}
+
+# alignment blocks
+LeftAlign()   { printf "%%{l}" ;}
+RightAlign()  { printf "%%{r}" ;}
+CenterAlign() { printf "%%{c}" ;}
+
+# block of spaces of a given size (default 2)
+Spacer() { printf "%*s" ${1:-2} " " ;}
+
+# PrintNButton ButtonNumber "Label Text" "command text"
+PrintNButton() {
+        printf "%%{A%d:%s:}%s%%{A}" "$1" "$3" "$2"
+}
+# PrintButton "Label Text" "command text"
+PrintButton() {
+        PrintNButton 1 "$1" "$2"
+}
+
+# Left side has buttons, right side has informational
+while true; do
+        LeftAlign
+        Blue1
+        PrintButton " xlock " "$clicktool xlock"
+        DefaultColors
+
+        Spacer 5
+
+        Black
+        PrintButton " standard xterm " "$clicktool xterm"
+        DefaultColors
+
+        Spacer 5
+
+        Red1
+        PrintButton " Firefox " "$clicktool firefox"
+        DefaultColors
+
+        Spacer 5
+
+        Green1
+        PrintButton " 'newfirefox' " "$clicktool newfirefox"
+        DefaultColors
+
+        Spacer 5
+
+        Blue1
+        b=$(PrintNButton 3 " window " "$clicktool windowshotgimp")
+        PrintNButton 1 "$b" "$clicktool windowshot"
+        Blue2
+        printf " <- screenshot -> "
+        Red1
+        PrintButton " root " "$clicktool fullscrshot"
+        DefaultColors
+
+        RightAlign
+
+        # Set different colors
+        Blue2
+        Uptime
+        DefaultColors
+
+        Spacer 16
+
+        Blue2
+        Clock
+        DefaultColors
+
+        Spacer
+
+        DefaultColors
+
+        # end of line, signals to lemonbar to print something
+        echo
+	# looping forever, but not quickly
+        sleep 5
+done
+

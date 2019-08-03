@@ -1,0 +1,872 @@
+#!/usr/local/bin/perl -w
+#
+# Generate an HTTP POST body from command line arguments. This
+# does not send the request to any particular server, but is a
+# helper tool for bget, which can do that.
+#
+# Benjamin Elijah Griffin	16 Nov 2004
+use strict;
+use vars qw( $urlencode $ctype $ftype $boundary $chunking $name $val $out
+             $file $extra $bget $bgetheads $postdata $chunksize
+	     @ord %in %prop $last
+	     $id $EOL
+	     $VERSION $LONG_VERSION_INFO
+           );
+
+$VERSION = '1.0';
+$LONG_VERSION_INFO = 'initial: 16-Nov-2004';
+
+$id = $0;
+$id =~ s:.*/::;
+
+$EOL = "\cm\cj";
+
+$urlencode = 'l';	# default to lax encoding
+$chunking  = 0;		# default to non-chunked form
+$bget      = 0;		# print content-type for bget
+$bgetheads = '';	# workspace for bget headers
+$ctype     = 'application/x-www-form-urlencoded';	# standard content type
+$ftype     = '';	# default type of POSTed file
+$extra     = '';	# extra header for multipart data
+
+sub simpleform();
+sub multipartform();
+sub addinput($);
+sub usage($);
+sub urlencode($$);
+
+while(defined($ARGV[0])) {
+  if(substr($ARGV[0], 0, 1) eq '-') {
+    # option form arguments
+
+    # Boolean options
+    if (($ARGV[0] eq '-a') or ($ARGV[0] eq '--aggressive'))  {
+      $urlencode = 'a';
+      $last = shift;
+    } elsif (($ARGV[0] eq '-h') or ($ARGV[0] eq '--bgetheaders'))  {
+      $bget = 1;
+      $last = shift;
+    } elsif (($ARGV[0] eq '-C') or ($ARGV[0] eq '--chunk'))  {
+      $chunking = 1;
+      $last = shift;
+    } elsif (($ARGV[0] eq '-l') or ($ARGV[0] eq '--lax'))  {
+      $urlencode = 'l';
+      $last = shift;
+    } elsif (($ARGV[0] eq '-m') or ($ARGV[0] eq '--multipartform'))  {
+      $ctype = 'multipart/form-data';
+      $urlencode = 'n'; # change default urlencode
+      $last = shift;
+    } elsif (($ARGV[0] eq '-n') or ($ARGV[0] eq '--none'))  {
+      $urlencode = 'n';
+      $last = shift;
+    } elsif (($ARGV[0] eq '-t') or ($ARGV[0] eq '--total'))  {
+      $urlencode = 't';
+      $last = shift;
+
+    # Argument options
+    } elsif (($ARGV[0] eq '-B') or ($ARGV[0] eq '--boundary'))  {
+      $last = shift;
+      $boundary = shift;
+      if (!defined($boundary)) {
+        print STDERR "$id: -B (--boundary) requires a string\n";
+	usage(2);
+      }
+    } elsif (($ARGV[0] eq '-c') or ($ARGV[0] eq '--contenttype'))  {
+      $last = shift;
+      $ftype = shift;
+      if (!defined($ftype) or (substr($ftype, 0, 1) eq '-')) {
+        print STDERR "$id: -c (--contenttype) requires a mime type or " 
+	            ."empty string\n";
+	usage(2);
+      }
+    } elsif (($ARGV[0] eq '-e') or ($ARGV[0] eq '--extraheader'))  {
+      $last = shift;
+      $extra = shift;
+      if (!defined($extra)) {
+        print STDERR "$id: -e (--extraheader) requires a header field\n";
+	usage(2);
+      }
+    } elsif (($ARGV[0] eq '-o') or ($ARGV[0] eq '--out'))  {
+      $last = shift;
+      $out = shift;
+      if (!defined($out) or !length($out)) {
+        print STDERR "$id: -o (--out) requires a filename\n";
+	usage(2);
+      }
+
+    # Form data options
+    } elsif (($ARGV[0] eq '-f') or ($ARGV[0] eq '--file'))  {
+      $last = shift;
+      $name = shift;
+      $val  = shift;
+      if(!defined($name) or !defined($val)) {
+        print STDERR "$id: -f (--file) missing name and/or file\n";
+        usage(2);
+      }
+
+      if (! -r $val) {
+	print STDERR "$id: file '$val' doesn't exist\n";
+	usage(2);
+      }
+
+      $file = $val;
+      addinput(1);
+      $file = undef;
+
+    } elsif (($ARGV[0] eq '-F') or ($ARGV[0] eq '--file-name'))  {
+      $last = shift;
+      $name = shift;
+      $val  = shift;
+      $file = shift;
+      if(!defined($name) or !defined($val) or !defined($file)) {
+        print STDERR "$id: -F (--file-name) missing one or more attributes\n";
+        usage(2);
+      }
+
+      if (! -r $file) {
+	print STDERR "$id: file '$file' doesn't exist\n";
+	usage(2);
+      }
+
+      addinput(1);
+      $file = undef; # clear
+
+    } elsif (($ARGV[0] eq '-T') or ($ARGV[0] eq '--textareafile'))  {
+      $last = shift;
+      $name = shift;
+      $file = shift;
+      $val  = undef;
+
+      if(!defined($name) or !defined($file)) {
+        print STDERR "$id: -T (--textareafile) missing name and/or file\n";
+        usage(2);
+      }
+
+      if (! -r $file) {
+	print STDERR "$id: file '$file' doesn't exist\n";
+	usage(2);
+      }
+
+      addinput(0);
+      $file = undef; # clear
+
+    } elsif (($ARGV[0] eq '-p') or ($ARGV[0] eq '--namevaluepair'))  {
+      $last = shift;
+      $name = shift;
+      $val  = shift;
+
+      if(!defined($name) or !defined($val)) {
+        print STDERR "$id: -p (--namevaluepair) missing name and/or value\n";
+        usage(2);
+      }
+
+      addinput(0);
+
+    } elsif (($ARGV[0] eq '-b') or ($ARGV[0] eq '--bareword'))  {
+      $last = shift;
+      $name = shift;
+      $val  = undef;
+
+      addinput(0);
+
+    } elsif (($ARGV[0] eq '-i') or ($ARGV[0] eq '--input'))  {
+      $last = shift;
+      $_ = shift;
+      if(defined($_) and /([^=]+)=(.*)/) {
+        $name = $1;
+        $val  = $2;
+      } else {
+        print STDERR "$id: invalid input: '$_' (after '$last')\n";
+        usage(2);
+      }
+
+      addinput(0);
+
+    # Instant exit options
+    } elsif ($ARGV[0] eq '--help')  {
+      usage(0);
+    } elsif ($ARGV[0] eq '--version') {
+      print "$id version $VERSION $LONG_VERSION_INFO\n";
+      exit(0);
+    } else {
+      print STDERR "$id: $ARGV[0] not a recognized option\n";
+      &usage(2);
+
+    } # end the big if-else chain for option form arguments
+
+  } else {
+    # direct arguments
+
+    $_ = shift;
+    if(defined($_) and /([^=]+)=(.*)/) {
+      $name = $1;
+      $val  = $2;
+      $last = $_;
+    } else {
+      print STDERR "$id: invalid input: '$_' (after '$last')\n";
+      usage(2);
+    }
+
+    addinput(0);
+
+  } # end direct arguments
+
+} # end while ARGV
+
+# We have all our POST data (well, excluding contents of files). Let's
+# set up anything else we need to before we start to output stuff.
+
+if($ctype =~ /multipart/) {
+  if(!defined($boundary)) {
+    $boundary = "--==--mkpost--==--" . time . "--==--$$--==--";
+  }
+
+  $bgetheads = qq(Content-Type: $ctype; boundary="$boundary"\n);
+} else {
+  $bgetheads = qq(Content-Type: $ctype\n);
+}
+
+if(defined($out) and length($out)) {
+  if(open(OUT, "> $out")) {
+    select OUT;
+    binmode OUT;
+  } else {
+    print STDERR "$id: Cannot open '$out': $!\n";
+    usage(2);
+  }
+}
+
+if($bget) {
+  print $bgetheads;
+  if($chunking) {
+    print "Transfer-Encoding: chunked\n";
+  }
+}
+
+
+# Set up complete.
+# Now, do we have a www-form-urlencoded content type? If yes, build
+# the response entirely before printing it.
+
+
+if($ctype =~ /www-form-urlencoded/) {
+  $postdata = simpleform();
+
+  if($chunking) {
+    $chunksize = sprintf("%x", length($postdata));
+    print "$chunksize$EOL$postdata${EOL}0$EOL";
+  } else {
+    print $postdata;
+  }
+
+  # We're done.
+  exit;
+}
+
+# We must have a multipart POST.  We'll build and print as we go.
+multipartform();
+
+exit;
+
+#################################################################
+# Functions follow
+
+# Print usage and exit.
+sub usage($) {
+  my $rc = shift;
+
+  if($rc == 2) {
+    print STDERR "Use --help for help.\n";
+    exit $rc;
+  }
+
+  print "$id -- $VERSION -- usage\n", <<ENDusage;
+Simple usage: mkpost variable=value foo=bar qux=123 [...] > tmpfile
+For more complex usage intersperse options with variable=value pairs.
+All arguments are processed in order. Variable names can be reused.
+
+Information Options:
+  --help	print this usage and exit
+  --version	print version information and exit
+
+Options that effect subsequent variable data:
+  -a --aggressive	URL encode most non-alphanumerics
+  -l --lax		URL encode minimal non-alphanumerics (default)
+  -n --none		URL encode nothing (multipart default)
+  -t --total		URL encode all characters
+  -c --contenttype STR	use STR as multipart Content-Type ('' to clear)
+  -e --extraheader STR	use STR as multipart extra header ('' to clear)
+
+Options that effect total output:
+  -B --boundary STR	use STR as multipart boundary
+  -C --chunk		use 'Transfer-Encoding: chunked' output
+  -h --bgetheaders	print headers (Content-Type, etc) for bget to use
+  -m --multipartform	use multipart/form-data structure for output
+  -o --out FILE		write output to FILE
+
+Options for single post varibables:
+  -f --file VAR FILE		attach FILE using input name VAR and file
+  					name FILE (multipart)
+  -F --file-name VAR NAME FILE	attach FILE using input name VAR and file
+  					name NAME (multipart)
+  -T --textareafile VAR FILE	include FILE for value of input VAR
+  -b --bareword STRING		put STRING in variable list
+  -i --input VAR=VALUE		put VAR=VALUE in variable list
+  -p --namevaluepair VAR VALUE	put VAR=VALUE in variable list
+
+The last three are useful for odd situations like varibable names that
+start with hyphen or include an equals sign.
+ENDusage
+  exit $rc;
+} # end &usage
+
+# Do the work of adding an input value to the work array and hashes.
+sub addinput($) {
+  my $isfile = shift;
+  my $hold;
+
+  push(@ord, $name);
+
+  # first the simple case: unique input name
+  if(!exists($in{$name})) {
+    $in{$name} = $val;
+    $prop{$name} = { isfile => $isfile,
+                     filename => $file,
+                     type => $ftype,
+		     encode => $urlencode,
+		     extra => $extra,
+		   };
+    return;
+  }
+
+  # If we are here then this input element appears multiple times. This
+  # is not only legal, but required for <SELECT MULTIPLE> to work.
+
+  # Did we set up the arrays yet?
+  if(ref($in{$name}) eq '') {
+    # No. Let's do that now.
+    $hold = $in{$name};
+    $in{$name} = [ $hold ];
+
+    $hold = $prop{$name};
+    $prop{$name} = [ $hold ];
+  }
+
+  $hold = $in{$name};
+  push(@$hold, $val);
+
+  $hold = $prop{$name};
+  push(@$hold, { isfile => $isfile,
+		 filename => $file,
+                 type => $ftype,
+		 encode => $urlencode,
+		 extra => $extra,
+	       });
+} # end &addinput
+
+# Generate the post data for a bog standard form.
+sub simpleform() {
+  my $data = '';
+  my $key;
+  my $value;
+  my $file;
+  my $props;
+
+  for $key (@ord) {
+    if(ref($in{$key})) {
+      $value = shift(@{$in{$key}}); 
+      $props = shift(@{$prop{$key}}); 
+    } else {
+      $value = $in{$key}; 
+      $props = $prop{$key}; 
+    }
+
+    if(!defined($value) and defined($file = $$props{filename})) {
+      if(!open(IN, "< $file")) {
+        print STDERR "$id: cannot open input file '$file': $!\n";
+	usage(2);
+      }
+      binmode IN;
+      $value = '';
+      while(<IN>) {
+        $value .= $_;
+      }
+      close IN;
+    }
+
+    if($data) { $data .= '&'; }
+
+    $data .= urlencode($$props{encode}, $key);
+
+    if(defined($value)) {
+      $data .= '=' .  urlencode($$props{encode}, $value);
+    }
+  }
+
+  $data;
+} # end &simpleform
+
+# Generate the post data for a multipart form. If we need to do chunking,
+# we'll make each part at least one chunk, possibly more.
+sub multipartform() {
+  my $part;
+  my $key;
+  my $file;
+  my $value;
+  my $hval;
+  my $props;
+
+  for $key (@ord) {
+    if(ref($in{$key})) {
+      $value = shift(@{$in{$key}}); 
+      $props = shift(@{$prop{$key}}); 
+    } else {
+      $value = $in{$key}; 
+      $props = $prop{$key}; 
+    }
+
+    # The boundary specified in the header is only the base value;
+    # real boundaries have extra hyphens.
+    $part = "--$boundary$EOL";
+
+    $part .= q(Content-Disposition: form-data; name=") . 
+             urlencode($$props{encode}, $key);
+
+    # If defined, we'll get the data from here whether or not this
+    # is an 'attached' file.
+    $file = $$props{filename};
+
+    # do the part headers
+
+    if($$props{isfile}) {
+      $part .= q("; filename=") .
+               urlencode($$props{encode}, $value);
+    }
+    $part .= qq("$EOL);
+
+    if(defined($hval = $$props{type}) and length($hval)) {
+      $part .= qq(Content-Type: $hval$EOL);
+    }
+
+    if(defined($hval = $$props{extra}) and length($hval)) {
+      $part .= qq($hval$EOL);
+    }
+
+    $part .= $EOL;
+
+    # done with part headers
+
+    if($file) {
+      if(!open(IN, "< $file")) {
+        print STDERR "$id: cannot open input file '$file': $!\n";
+	usage(2);
+      }
+      binmode IN;
+      # This could get big. FIX for the case of chunked posts.   GREP grep
+      while(<IN>) {
+        $part .= urlencode($$props{encode}, $_);
+      }
+      close IN;
+      $part .= $EOL;
+    } else {
+      # not a file
+
+      if(defined($value)) {
+        $part .= urlencode($$props{encode}, $value) . $EOL;
+      }
+    }
+
+    if($chunking) {
+      $chunksize = sprintf("%x", length($part));
+      print "$chunksize$EOL$part";
+    } else {
+      print $part;
+    }
+  } # for key
+
+  $part = "--$boundary--$EOL\n";
+  if($chunking) {
+    $chunksize = sprintf("%x", length($part));
+    print "$chunksize$EOL$part$EOL";
+  } else {
+    print $part;
+  }
+} # end &multipartform
+
+# Apply the desired level of URL encoding to the data.
+sub urlencode($$) {
+  my $method = shift;
+  my $data   = shift;
+
+  # n = no encoding desired
+  if($method eq 'n') {
+    return $data;
+  }
+
+  # t = total encoding desired
+  if($method eq 't') {
+    $data =~ s/(.)/sprintf"%%%02X",ord($1)/eg;
+    return $data;
+  }
+
+  $data =~ s/([\t\cM\cJ%#&+=])/sprintf"%%%02X",ord($1)/eg;
+
+  # l = lax encoding desired
+  if($method eq 'l') {
+    $data =~ s/ /+/g;
+    return $data;
+  }
+
+  # a = aggressive encoding desired
+  $data =~ s/([^%.A-Za-z0-9_-])/sprintf"%%%02X",ord($1)/eg;
+
+  $data;
+} # end &urlencode
+
+__END__
+
+=pod
+
+=head1 NAME
+
+mkpost - build bodies for HTTP CGI POST requests
+
+=head1 DESCRIPTION
+
+This is designed as a helper tool for bget to build the body content
+of POST requests. The usage can be straightforward or convoluted 
+depending on how odd a request is desired.
+
+The simplest usage is to just give C<mkpost> a series of I<variable=value>
+arguments and it will concatenate and URL encode as needed. Assuming a
+shell prompt of "$":
+
+   $ mkpost "a=one percent" b=2% c=III-p/100 d=d_p/c e= ; echo ""
+   a=one+percent&b=2%25&c=III-p/100&d=d_p/c&e=
+   $
+
+Note that the default post request does not include a trailing newline,
+hence the use of echo.
+
+Much more complicated output may be desired and C<mkpost> has the
+options to specify it. 
+
+Options and I<variable=value> can be freely interspersed on the command
+line. All options are processed in the order they are encountered. This
+means that the URL encoding options should appear before the first 
+variable they are intended to apply to.
+
+Options come in several varieties and are grouped together: URL encoding,
+output format, form data specification, and about mkpost.
+
+=head2 URL encoding options.
+
+These apply to both the variable name and the value. For attached files,
+these apply to both the file name and the file contents.
+
+=over 4
+
+=item *
+
+-a --aggressive
+
+This is a very safe encoding. Pretty much every punctuation mark and all
+control characters are URL encoded. Space is encoded as "%20".
+
+=item *
+
+-l --lax
+
+This is the default for regular output. A few sensitive control characters
+and punctuation marks are URL encoded. Space is encoded as "+".
+
+=item *
+
+-n --none
+
+This is the default for multipart output. No URL encoding is performed.
+Use this for data that has been encoded already or to test for breakage.
+
+=item *
+
+-t --total
+
+Every character is encoded. Use this for obfuscation.
+
+=back
+
+=head2 Output format
+
+While these can appear anywhere on the command line, unexpected things
+may occur if multipart option is given after any form data.
+
+=over 4
+
+=item *
+
+-h --bgetheaders
+
+Print headers for use with the I<-P> / I<--filepost> option of C<bget>.
+You'll want to use this so bget will send the right headers if you have
+a multipart post or chunked output.
+
+=item *
+
+-C --chunk
+
+Generate output in HTTP/1.1 "Transfer-Ecoding: chunked" form. Many web
+servers will not accept POST requests in this format.
+
+=item *
+
+-m --multipartform
+
+This option specifies a form encoding of "multipart/form-data" instead of
+the regular (default) "application/x-www-form-urlencoded". This option is
+necessary for file attachments. Specifying this changes the default URL
+encoding to none.
+
+=item *
+
+-B --boundary		STRING
+
+Used with multipart forms, this specifies a boundary string to use. 
+No format constraints are applied, but a safe choice of string would
+be long, with no whitepace, and not appear in any of the form data.
+If not provided a default will be generated that uses the name of
+the program, a time stamp, and the process ID.
+
+=item *
+
+-c --contenttype	MIME/TYPE
+
+Used with multipart forms, this specifies a content type to use for
+all subsequent parts. Unset this by using a blank content type.
+A standard MIME type is of the form I<MAJORTYPE>/I<SUBTYPE>. That
+format is not required here, but the MIME type cannot start with
+a hyphen. A good default to use for an attached file is
+"application/octet-stream".
+
+=item *
+
+-e --extraheader	STRING
+
+Used with multipart forms, this specifies an extra header to use for
+all subsequent parts. Unset this by using a blank extra header. No
+format constraints are applied.
+
+=item *
+
+-o --out		FILE
+
+Output is saved to the named file.
+
+=over
+
+=head2 Form data specification
+
+Many ways are provided to specify the form data. It is expected few will
+be needed in typical use. It is not an error to use a variable name
+multiple times, and order will be preserved when multiples are specified.
+
+=item *
+
+-f --file	VARIABLE FILE
+
+Used to attach a file. If the output is not multipart, only the filename
+will be sent. This matches the behavior the author has witnessed in major
+web browsers for E<lt>INPUT TYPE=FILEE<gt> form elements. The provided
+file name is the source of the data and the file name used in the form.
+Content-type is often specified for attached files. Use the I<-c> /
+I<--contenttype> option to add that.
+
+=item *
+
+-F --file-name	VARIABLE NAME FILE
+
+This is like I<-f> / I<--file> but allows for a different filename to be
+sent. I<NAME> is the name used, and I<FILE> is the file attached.
+
+=item *
+
+-T --textareafile	VARIABLE FILE
+
+Rather than attaching a file, this is used to in-line include a file.
+This useful for providing text for a E<lt>TEXTAREAE<gt> block. In
+multipart forms, the only way this differs from an attached file is
+that no file name is provided, and content-type is usually not specified.
+
+=item *
+
+-b --bareword	STRING
+
+This is used to specify the next argument is a bareword to be included
+in the output. This is different from a variable with value of the empty
+string in that no equals sign is added by mkpost. 
+
+=item *
+
+-i --input	VARIABLE=VALUE
+
+This is used to specify the next argument is a I<VARIABLE>=I<VALUE>
+declaration. This is useful if the I<VARIABLE> starts with a hyphen.
+
+=item *
+
+-p --namevaluepair	VARIABLE VALUE
+
+This is used to specify the next two arguments are the I<VARIABLE>
+and I<VALUE> parts respectively. This is useful if the I<VARIABLE>
+starts with a hyphen or contains an equals sign.
+
+=back
+
+=head2 About mkpost
+
+=over 4
+
+=item *
+
+--help
+
+Prints a usage message and exits.
+
+=item *
+
+--version
+
+Prints version information and exits.
+
+=back
+
+=head1 WARNINGS
+
+It should be noted that some combinations of options can produce
+highly unusual POST requests, including some far from what the
+specification allows. The http server and/or the CGI program processing
+the request might not be able to cope. This is by design, since C<bget>
+is at heart a web testing tool.
+
+It should be noted that a browser generating a multipart form does not
+URL encode anything -- or MIME encode anything -- even when not doing
+so will produce headers in violation of specification. 
+
+=head1 EXAMPLES
+
+=over 4
+
+=item $
+
+mkpost to=yassir@arafat.name subject="So long" cc= -T body /tmp/mail.txt
+
+This will generate a POST request something like:
+
+  to=yassir@arafat.name&subject=So+long&cc=&body=mail+message+here%0A
+
+=item $
+
+mkpost a=one a=two a=three start=playing
+
+Will produce:
+
+  a=one&a=two&a=three&start=playing
+
+=item $
+
+mkpost -t hide=me -l "etc=& c" -a email=my+address@example.com,you@there
+
+Will produce:
+
+  %68%69%64%65=%6D%65&etc=%26+c&email=my%2Baddress%40example.com%2Cyou%40there
+
+=item $
+
+mkpost -i -funny-=-vars- -p -are=us- -indeed- -b -yes-sir-
+
+Will produce:
+
+  -funny-=-vars-&-are%3Dus-=-indeed-&-yes-sir-
+
+=item $
+
+mkpost -m -c image/jpeg -f image /tmp/large.jpg -c '' x=30 y=20 submit=resize
+
+Will produce something like:
+
+  ----==--mkpost--==--1100733119--==--18089--==--
+  Content-Disposition: form-data; name="image"; filename="/tmp/large.jpg"
+  Content-Type: image/jpeg
+
+  image-data-here
+  ----==--mkpost--==--1100733119--==--18089--==--
+  Content-Disposition: form-data; name="x"
+
+  30
+  ----==--mkpost--==--1100733119--==--18089--==--
+  Content-Disposition: form-data; name="y"
+
+  20
+  ----==--mkpost--==--1100733119--==--18089--==--
+  Content-Disposition: form-data; name="submit"
+
+  resize
+  ----==--mkpost--==--1100733119--==--18089--==----
+
+=item $
+
+mkpost -h -C -m -c text/plain -F users /etc/passwd /etc/group -B -whee-
+
+Will produce something like:
+
+  Content-Type: multipart/form-data; boundary="-whee-"
+  Transfer-Encoding: chunked
+  af
+  ---whee-
+  Content-Disposition: form-data; name="users"; filename="/etc/passwd"
+  Content-Type: text/plain
+
+  root:x:0:root
+  bin:x:1:root,bin,daemon
+  daemon:x:2:root,bin,daemon
+
+  d
+  ---whee---
+
+=head1 SEE ALSO
+
+C<bget> -- basic HTTP get tool
+
+=head1 COPYRIGHT
+
+Copyright 1999-2004 by Eli the Bearded / Benjamin Elijah Griffin.
+Released under the same license(s) as Perl.
+
+=head1 AUTHOR
+
+Eli the Bearded realized his bget tool couldn't be used to test
+chunked POST requests and fixed that. But creating the POST bodies
+was too complex to add to that tool, hence mkpost.
+
+=head1 CPAN INFO
+
+=head1 SCRIPT CATEGORIES
+
+Web
+
+=head1 README
+
+mkpost -- build bodies for HTTP CGI POST requests, a bget helper tool.
+
+=head1 PREREQUISITES
+
+This uses only the C<strict> and C<vars> modules.
+
+=head1 COREQUISITES
+
+You probably want to use this with C<bget>.
+
+=head1 OSNAMES
+
+Any OS dependecies are bugs.
+
+=cut

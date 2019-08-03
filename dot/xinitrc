@@ -1,0 +1,93 @@
+# geometry as reported by xwininfo, alas this is wm dependent
+# Top row
+xterm   -geometry 100x24+0+0 &
+xterm   -geometry 100x22+619+0 &
+xterm   -geometry 100x24-63+0 &
+
+# Middle row 
+xterm   -geometry 100x37+0+345 &
+xterm   -geometry 100x27+619+317 &
+xterm   -geometry 107x50-21-82 &
+
+# Bottom row
+xterm   -geometry 100x13+0-28 -e tail -f $HOME/.X.out &
+keypid=$!	# this is the process that keeps X11 alive
+xterm   -geometry 100x25+619-26 &
+
+# Toolbar row (uncomment if needed)
+# xbiff   -geometry -0-17 &
+# xload   -label "localhost load" -geometry 370x40+1015-17 &
+# xclock  -geometry 235x29-52-17 -digital &
+
+# Windowless
+if [ ! -f $HOME/.xmodmap-pke ] ; then
+  # save defaults in case a restore is needed
+  xmodmap -pke > $HOME/.xmodmap-pke
+  xmodmap -pm  > $HOME/.xmodmap-pm
+fi
+#ap=$HOME/notes/xmodmap/2011-opensuse-dell/tab-numlock-caps.xmodmap
+map=$HOME/.screw-numlock.xmodmap
+xmodmap $map
+
+# Simple X hotkey daemon
+# sxhkd -c $HOME/.sxhkdrc &
+
+# Different hotkey daemon
+# xbindkeys &
+
+# xev | perl -wlne 'if(/ (keycode .*\)),/){print $1}'
+xset=
+#        F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 F12
+for n in 67 68 69 70 71 72 73 74 75  76  95  96 ; do
+  # -r keycode : surpress autorepeat for keycode
+  xset="$xset -r $n"
+done
+xset $xset
+
+#xscreensaver -nosplash &
+
+# /usr/bin/gnome-panel &
+
+#exec sawfish
+#exec twm
+
+# Normally the WM is the last program and not backgrounded, but I find
+# I want to sometimes replace WM without restarting X, so I use an
+# xterm (with pid saved in $keypid).
+
+#blackbox &
+
+#wmaker &
+
+# metacity configuration is via gconf-editor
+ metacity &
+# in metacity, without a proper systray restoring minimized windows is a
+# little awkward. <alt><tab> opens modal window picker and grayed windows
+# are the minimized ones, select one to restore
+# lemonbar is a barebones task bar alternative; it can show arbitrary text
+# (reads from stdin) and output text when clicked. The run script sets up
+# a loop writing to stdin and reading stdout to allow the buttons to run
+# things.
+ $HOME/bin/runlemonbar &
+
+# twm &
+# kwin &
+# startkde & # runs kwin + systray + ...
+
+# segfaults on centos; using startkde or metacity depending on centos version
+#PATH=/home/bgriffin/icewm/bin:$PATH
+#icewm-session &
+
+# wmaker sets the background sometime after it starts, fix that.
+# sleep 2s
+xsetroot -solid lightblue &
+
+sleep 60
+# touch .xworks if X11 works ...
+# if [ ! -f $HOME/.xworks ] ; then exit ; fi
+cp .X.out .X.out-post-startup
+
+# wait on a particular process seems much more reliable than
+# waiting on all of them
+wait $keypid
+

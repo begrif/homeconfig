@@ -1,0 +1,329 @@
+#!/usr/bin/perl -w
+#
+# A simple httpd that responds to every request with the same content.
+#
+# Benjamin Elijah Griffin	14 Dec 2000
+
+use strict;
+use Socket;
+use Fcntl;
+use vars qw( $VERSION $EOL $iam $default $defaulttype $nosignal $verbosity
+             $httpcode %typemap $reqlog $file $type $suf $bget $bgetin
+             $id $tcpproto $sport $paddr $iaddr $name $inport $url
+             $in $logaddr $size $ans
+             @gmt $date @moy @dow
+           );
+
+$id            = $0;
+$id            =~ s:.*/::;
+
+$VERSION       = "1.1";
+$EOL           = "\cm\cj";
+$iam           = '';
+$sport         = 8181;
+$reqlog        = '';
+$file          = '';
+$type          = '';
+$verbosity     = 1;
+$bget          = 0;
+$httpcode      = '200 OK';
+$default       = "Thanks for playing. Your headers have now been snagged$EOL";
+$defaulttype   = 'text/plain';
+@dow           = qw( Sun Mon Tue Wed Thu Fri Sat );
+@moy           = qw( Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec );
+
+%typemap = (
+  'htm'  => 'text/html',
+  'html' => 'text/html',
+  'txt'  => 'text/plain',
+  'text' => 'text/plain',
+  'gif'  => 'image/gif',
+  'jpg'  => 'image/jpeg',
+  'jpeg' => 'image/jpeg',
+  'tif'  => 'image/tiff',
+  'tiff' => 'image/tiff',
+);
+
+sub logmsg { print "#$id\n#\t@_\n#\tat ", scalar localtime, "\n" }
+sub usage($);
+
+$tcpproto      = getprotobyname('tcp');
+
+sub THEEND ($) {
+  my $signame = (shift or '(unknown)');
+  die "Got SIG$signame ... exiting\n";
+} # &THEEND
+
+sub BUMP ($) {
+  my $signame = (shift or '(unknown)');
+  $nosignal = 0;
+} # end &BUMP 
+
+$SIG{INT}  = 'main::THEEND';
+$SIG{TERM} = 'main::THEEND';
+$SIG{PIPE} = 'main::BUMP';
+
+while(defined($ARGV[0]) and substr($ARGV[0], 0, 1) eq '-') {
+  if (($ARGV[0] eq '-p') or ($ARGV[0] eq '--port'))  {
+    shift;
+    if (defined($ARGV[0]) and substr($ARGV[0], 0, 1) ne '-') {
+      $ARGV[0] =~ /(\d+)/; shift;
+      $sport = $1;
+    } else {
+      warn "$id: -p (--port) requires an argument\n";
+      usage(2);
+    }
+  } elsif (($ARGV[0] eq '-l') or ($ARGV[0] eq '--logfile'))  {
+    shift;
+    if (defined($ARGV[0])) {
+      $reqlog = shift;
+      if ($reqlog eq '0') {
+        $reqlog = './0';
+      }
+      if(!open(REQLOG, ">>$reqlog")) {
+        warn "$id: Failed to open $reqlog for append: $!\n";
+	$reqlog = '';
+      }
+    } else {
+      warn "$id: -l (--logfile) requires a log file\n";
+      usage(2);
+    }
+  } elsif (($ARGV[0] eq '-f') or ($ARGV[0] eq '--file'))  {
+    shift;
+    if (defined($ARGV[0])) {
+      $file = shift;
+      if ($file eq '0') {
+        $file = './0';
+      }
+      if(!open(FILE, "<$file")) {
+        warn "$id: Failed to open $file for read: $!\n";
+	exit(2);
+      }
+    } else {
+      warn "$id: -f (--file) requires an input file\n";
+      usage(2);
+    }
+  } elsif (($ARGV[0] eq '-c') or ($ARGV[0] eq '--httpcode'))  {
+    shift;
+    if (defined($ARGV[0]) and $ARGV[0] =~ m!^(\d\d\d [\w -]*)$!) {
+      $httpcode = $1;
+      shift;
+    } else {
+      warn "$id: -c (--httpcode) requires a three digit code + label\n";
+      usage(2);
+    }
+  } elsif (($ARGV[0] eq '-m') or ($ARGV[0] eq '--mimetype'))  {
+    shift;
+    if (defined($ARGV[0]) and $ARGV[0] =~ m!^([\w.]+/[\w.]+)$!) {
+      $type = $1;
+      shift;
+    } else {
+      warn "$id: -m (--mimetype) requires a valid mime type\n";
+      usage(2);
+    }
+  } elsif (($ARGV[0] eq '-q') or ($ARGV[0] eq '--quiet')) {
+    shift;
+    $verbosity = 0;
+  } elsif (($ARGV[0] eq '-v') or ($ARGV[0] eq '--verbose')) {
+    shift;
+    $verbosity ++;
+  } elsif (($ARGV[0] eq '-b') or ($ARGV[0] eq '--bget')) {
+    shift;
+    $bget ++;
+  } elsif ($ARGV[0] eq '--help') {
+    &usage(0);
+  } else {
+    warn "$id: $ARGV[0] not a recognized option\n";
+    &usage(2);
+  }
+}
+
+if ($file and !$type) {
+  if ($file =~ /\.([^.]+)$/) {
+    $suf = lc($1);
+    if (!defined($type = $typemap{$suf})) {
+      warn "#$id: mime type for $suf unknown\n";
+    }
+  }
+}
+
+if (!$type) {
+  $type = $defaulttype;
+}
+
+$url = qx('/bin/hostname');
+if($url) {
+  chomp($url);
+  $url = "http://$url:$sport/";
+}
+
+$id  .= " pid $$:";
+$iam  = $url ? $url : '';
+$iam .= "\n#\tport $sport; verbosity $verbosity";
+$iam .= "\n#\twill do request logging" if ($reqlog);
+$iam .= "\n#\twill use mime type $type" if ($type);
+$iam .= "\n#\twill send file $file" if ($file);
+$iam .= "\n#\twill respond with $httpcode" if $httpcode !~ /^200/;
+
+socket(Server, PF_INET, SOCK_STREAM, $tcpproto)   || die "$id: socket: $!";
+setsockopt(Server, SOL_SOCKET, SO_REUSEADDR,
+				    pack("l", 1)) || die "$id: setsockopt: $!";
+bind(Server, sockaddr_in($sport, INADDR_ANY))     || die "$id: bind: $!";
+listen(Server,SOMAXCONN)                          || die "$id: listen: $!";
+
+logmsg "nullhttpd server started -- $iam" if $verbosity;
+
+# Make most things autoflushed.
+$|=1;	# STDOUT
+if ($reqlog) {
+  select((select(REQLOG), $| = 1)[0]);
+}
+
+for ( ; $paddr = accept(Client,Server); close Client) {
+    $nosignal = 1;
+
+    ($inport,$iaddr) = sockaddr_in($paddr);
+    $name = (gethostbyaddr($iaddr,AF_INET) or "(dns error: $!)");
+    $in = $EOL;	# the inbound request
+
+    next unless $nosignal;
+
+    $logaddr = undef;
+
+    while(defined($_ = <Client>) and ($_ ne $EOL) and ($_ ne "\cj")) {
+      last unless $nosignal;
+      chomp;
+      $in .= $_ . "\cj" if defined($logaddr);
+      $logaddr = $_ unless defined($logaddr);
+    }
+    $in .= $EOL;
+    $bgetin = $logaddr . $in;
+
+    next unless $nosignal;
+    next unless $logaddr;
+
+    if ($in =~ /\nContent-length:\s+(\d+)/i) {
+      read(Client,$in,$1,length($in));
+    }
+
+    next unless $nosignal;
+
+    logmsg "connection from $name [", inet_ntoa($iaddr),
+           "] from port $inport" if $verbosity;
+
+    if ($reqlog) {
+      print REQLOG "\n\n\n\treceived: ", scalar localtime, "\n", $logaddr, $in;
+    }
+    if ($verbosity > 1) {
+      print $logaddr, $in;
+    }
+
+    if ($bget && ($logaddr !~ /favicon/)) {
+      $bgetin =~ s!\cM?\cJ!\cJ!g;
+      $bgetin =~ s!\AGET \S+ !GET \${URI} !;
+      $bgetin =~ s!^Host: \S+!Host \${HOST}!im;
+      if($bgetin =~ s!^Referer: \S+!\${REFERER}!im) {
+        1; # good 
+      } else {
+        # need to add one 
+        $bgetin =~ s!\cJ\cJ!\n\${REFERER}\n\n!;
+      }
+      if($bgetin =~ s!^Cookie: \S+!\${COOKIE}!im) {
+        1; # good 
+      } else {
+        # need to add one 
+        $bgetin =~ s!\cJ\cJ!\n\${COOKIE}\n\n!;
+      }
+
+      # after adding all "new" headers, we can ditch the second \n
+      $bgetin =~ s!\cJ\cJ!\n!;
+
+      print "\n\t'UserAgentFriendlyName' => <<'UAShortName',\n";
+      print $bgetin;
+      print "UAShortName\n";
+    }
+
+    next unless $nosignal;
+
+    @gmt = gmtime();
+
+    # HTTP header time format
+    $date = sprintf("%s, %02d %s %4d %02d:%02d:%02d GMT",
+	    $dow[$gmt[6]], $gmt[3], $moy[$gmt[4]], $gmt[5] + 1900,
+	    $gmt[2], $gmt[1], $gmt[0]);
+
+    $ans = 
+      "HTTP/1.1 $httpcode$EOL" .
+      "Date: $date$EOL" .
+      "Server: nullhttpd server $VERSION$EOL" .
+      "Connection: close$EOL" .
+      "Content-Type: $type$EOL";
+
+    if ($file) {
+      $size = -s $file;
+    } else {
+      $size = length($default);
+    }
+
+    if (defined($size)) {
+      $ans .= "Content-Length: $size$EOL";
+    }
+
+    print Client $ans, $EOL;
+
+    if ($verbosity > 2) {
+      print $ans, $EOL;
+    }
+
+    if ($file) {
+      seek(FILE,0,0); # rewind file
+      print Client <FILE>;
+      if ($verbosity > 3) {
+	seek(FILE,0,0); # rewind file
+	print <FILE>;
+      }
+    } else {
+      print Client $default;
+      if ($verbosity > 3) {
+        print $default;
+      }
+    }
+
+} # end main loop
+
+exit(0);
+
+sub usage ($) {
+  my $exit = shift;
+
+  print <<"EndUsage";
+$0 usage:
+  $id [options]
+
+Options:
+	-c --httpcode	"code"	http code to use (three digit, space, text)
+  	-l --logfile	file 	file to log reqests (will appended)
+	-f --file	file 	file to transmit
+	-p --port	NUM	port to listen on
+	-m --mimetype	type	mime type to use
+	-q --quiet              surpress informational messages
+	-v --verbose            display extra informational messages
+	-b --bget		display request headers in bget source style
+
+Trival http server. All requests are responded to with the same
+data. Logging logs a timestamp, the entire request header, and
+if there is content to the request (eg POST data), that gets
+logged, too.
+
+Port defaults to 8181. Mime type defualts to $defaulttype.
+In some cases $id can figure out the mime type of a supplied
+file, by looking at the suffix, but don't rely too heavily on
+this. Data to transmit defaults to
+<<$default>>
+
+EndUsage
+
+  exit($exit);
+} # end &usage 
+
+__END__

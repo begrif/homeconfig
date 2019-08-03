@@ -1,0 +1,90 @@
+
+==> vb: Pausing after run of step 'StepDownloadGuestAdditions'. Press enter to continue. 
+==> vb: Downloading or copying ISO
+    vb: Downloading or copying: https://mirrors.edge.kernel.org/centos/7/isos/x86_64/CentOS-7-x86_64-Minimal-1804.iso
+==> vb: Pausing after run of step 'StepDownload'. Press enter to continue. 
+==> vb: Pausing after run of step 'StepOutputDir'. Press enter to continue. 
+==> vb: Pausing after run of step 'StepCreateFloppy'. Press enter to continue. 
+==> vb: Starting HTTP server on port 8294
+
+boot command is "linux ks=http://{{.HTTPIP}}:{{.HTTPPort}}/ks.cfg"
+
+that must connect ot the HTTP server mentioned....
+
+: bgriffin; bget http://localhost:8294 
+<pre>
+<a href="ks.cfg">ks.cfg</a>
+</pre>
+: bgriffin; bget http://localhost:8294/ks.cfg
+install
+text
+skipx
+cdrom
+
+lang en_US.UTF-8
+keyboard us
+timezone --utc America/Los_Angeles
+rootpw vagrant
+
+authconfig --enableshadow --passalgo=sha512
+bootloader --location=mbr
+firewall --disabled
+network --onboot=yes --device=eth0 --bootproto=dhcp --noipv6 --hostname=localhost.localdomain
+selinux --permissive
+
+# Partitions
+clearpart --all --initlabel
+zerombr
+part / --fstype=ext4 --size=1 --grow
+
+reboot
+firstboot --disable
+
+
+%packages --instLangs=en_US.UTF-8 --ignoremissing --excludedocs
+@core --nodefaults
+nfs-utils
+
+# Core Default Packages to exclude
+-aic94xx-firmware
+-atmel-firmware
+-b43-openfwwf
+-bfa-firmware
+-efibootmgr
+# -grub
+-ipw2100-firmware
+-ipw2200-firmware
+-ivtv-firmware
+-iwl100-firmware
+-iwl1000-firmware
+-iwl3945-firmware
+-iwl4965-firmware
+-iwl5000-firmware
+-iwl5150-firmware
+-iwl6000-firmware
+-iwl6000g2a-firmware
+-iwl6050-firmware
+# -kernel-firmware
+-kexec-tools
+-libertas-usb8388-firmware
+-netxen-firmware
+# -postfix
+-ql2100-firmware
+-ql2200-firmware
+-ql23xx-firmware
+-ql2400-firmware
+-ql2500-firmware
+-rdma
+-rt61pci-firmware
+-rt73usb-firmware
+-xorg-x11-drv-ati-firmware
+-zd1211-firmware
+%end
+
+
+%post
+# Reduce the size of the initramfs image
+/sbin/dracut -f -H
+
+%end
+: bgriffin; 

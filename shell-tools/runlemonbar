@@ -1,0 +1,17 @@
+#!/bin/sh
+# Run lemonbar, with a wrapper to supply bar content (barfiller) and to
+# run programs based on clicks.
+#
+# Lemonbar: https://github.com/LemonBoy/bar
+
+# barcolor, a medium blue
+barbg='#4Af'
+# bar geometry: {default width}x{32 height}+{default x}+{default y}
+bargeo="x32++"
+# bar max buttons
+barmax=16
+
+# note that button commands should self-daemonize
+barfiller | lemonbar -b -B "$barbg" -g "$bargeo" -a $barmax | perl -we '
+        while(<STDIN>) { print "per lemonbar, running $_" ; system( $_ ); } '
+

@@ -1,0 +1,69 @@
+# for scp to frequently ssh'ed into hosts
+case "$-" in *i*) # only run on interactive shells
+
+# addpath ~/usr/bin             -> put $HOME/usr/bin at start of $PATH
+#                                  if it exists and not already on $PATH
+# addpath ~/fallback END        -> put $HOME/fallback at end of $PATH
+#                                  if it exists and not already on $PATH
+addpath () {
+  if [ -d "$1" ] ; then
+    case ":$PATH:" in
+       *:$1:*) : already on path ;;
+            *) case ":$2:" in
+                 :[eE][nN][dD]:) PATH=$PATH:$1 ;;
+                              *) PATH=$1:$PATH ;;
+               esac
+               ;;
+    esac
+  fi
+}
+
+for dir in $HOME/bin ; do
+  if [ -d $dir ] ; then
+    addpath $dir
+  fi
+  fi
+done
+
+md () {
+  mkdir "$1" && cd "$1"
+}
+
+export PATH
+export EDITOR=vi
+export VISUAL=vi
+export HOST=$(hostname)
+PS0='$'
+PS1=": $HOST $PS0 ; "
+PS2='   '
+export PS0 PS1 PS2
+
+set -o vi
+
+alias r="fc -e -"
+alias v="fc -e - vi"
+alias script='PS1="SCRIPT> " script'
+alias SETTIME="TZ=PST8PDT date +'date %m%d%H%M%Y.%S'"
+alias ping="/bin/ping -c 5"
+
+if [ ! -f "$HOME/.vimrc" -a -d "$HOME" ] ; then
+  echo 'set ai sw=2 history=200 ruler terse nrformats-=octal' >> "$HOME/.vimrc"
+  echo 'map * "yyy@y' >> "$HOME/.vimrc"
+  echo 'map S F r<CR>' >> "$HOME/.vimrc"
+  echo 'map = y p' >> "$HOME/.vimrc"
+  echo 'noremap _ *' >> "$HOME/.vimrc"
+fi
+
+if [ ! -f $HOME/.ssh/authorized_keys2 -a -d $HOME ] ; then
+  case "$HOME" in
+    *benjamin*|*griffin*)
+      mkdir -p $HOME/.ssh
+      chmod 700 $HOME/.ssh
+      : new ~/.ssh/id_rsa.pub
+      echo 'ssh-rsa FIXME-PLACEHOLDER keyidentifier' > $HOME/.ssh/authorized_keys2
+      chmod 600 $HOME/.ssh/authorized_keys2
+    ;;
+  esac
+fi
+
+;; esac # interactive shell wrapper

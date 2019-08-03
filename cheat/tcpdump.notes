@@ -1,0 +1,85 @@
+
+tcpdump -i vmbr0v71   port not 22 and port not 53 and host not 192.168.2.15
+#       ^^^^^^^^^^^   ^^^^^^^^^^^     ^^^^^^^^^^^     ^^^^^^^^^^^^^^^^^^^^^
+#       interface     exclude         exclude dns     exclude my IP
+#       to monitor    ssh
+
+tcpdump ether host 02:03:ff:fe:fd:88
+# filter for a particular MAC address
+
+listening on vmbr0
+  NADA
+
+bond0.1012
+	NADA
+
+listening on bond0, link-type EN10MB (Ethernet), capture size 262144 bytes
+12:36:12.567682 IP 0.0.0.0.bootpc > 255.255.255.255.bootps: BOOTP/DHCP, Request from 02:03:ff:fe:fd:88 (oui Unknown), length 300
+
+listening on bond0.1012, link-type EN10MB (Ethernet), capture size 262144 bytes
+12:40:46.306467 IP 0.0.0.0.bootpc > 255.255.255.255.bootps: BOOTP/DHCP, Request from 02:03:ff:fe:fd:88 (oui Unknown), length 300
+
+listening on vmbr0v1012, link-type EN10MB (Ethernet), capture size 262144 bytes
+12:45:46.546098 IP 0.0.0.0.bootpc > 255.255.255.255.bootps: BOOTP/DHCP, Request from 02:03:ff:fe:fd:88 (oui Unknown), length 300
+
+
+-------
+First the short version:
+
+I have a hypervisor host for which I'd like to have all guests on it be on a single VLAN and the hypervisor host providing the DHCP service. The hypervisor and its guests will be the only thing in this VLAN. I don't want this host responding to any other DHCP requests, if for some reason they make it in.
+
+The hypervisor is recent Proxmox VE (an open source VCenter type product) running on Debian 9 ("stretch"). The hardware has two bonded interfaces, to make it more complicated. The meat of /etc/network/interfaces:
+
+iface eno1 inet manual
+
+iface eno2 inet manual
+
+auto bond0
+iface bond0 inet manual
+        slaves eno1 eno2
+        bond_miimon 100
+        bond_mode 802.3ad
+
+iface bond0.1012 inet manual
+
+auto vmbr0v1012
+iface vmbr0v1012 inet static
+        address 10.20.12.33
+        netmask 255.255.254.0
+        gateway 10.20.12.1
+        bridge_ports bond0.1012
+        bridge_stp off
+        bridge_fd 0
+
+auto vmbr0
+iface vmbr0 inet manual
+        bridge_ports bond0
+        bridge_stp off
+        bridge_fd 0
+
+Inside Proxmox, I have a guest configured to be on vmbr0 using vlan tag 1012 (Proxmox will not let me assign guests directly to vmbr0v1012). I've given that guest a MAC address of 02:03:ff:fe:fd:88, rather than let Proxmox assign one randomly. Using tcpdump I've verified that the guest's DHCP requests appear on a variety of interfaces:
+
+# tcpdump -i bond0 ether host 02:03:ff:fe:fd:88
+listening on bond0, link-type EN10MB (Ethernet), capture size 262144 bytes
+12:36:12.567682 IP 0.0.0.0.bootpc > 255.255.255.255.bootps: BOOTP/DHCP, Request from 02:03:ff:fe:fd:88 (oui Unknown), length 300
+
+...
+listening on bond0.1012, link-type EN10MB (Ethernet), capture size 262144 bytes
+12:40:46.306467 IP 0.0.0.0.bootpc > 255.255.255.255.bootps: BOOTP/DHCP, Request from 02:03:ff:fe:fd:88 (oui Unknown), length 300
+
+...
+listening on vmbr0v1012, link-type EN10MB (Ethernet), capture size 262144 bytes
+12:45:46.546098 IP 0.0.0.0.bootpc > 255.255.255.255.bootps: BOOTP/DHCP, Request from 02:03:ff:fe:fd:88 (oui Unknown), length 300
+
+BUT I don't see anything on interface vmbr0.
+
+However, dnsmasq doesn't appear to like
+interface=bond0
+interface=bond0.1012
+
+Jan 14 12:38:51 proxmox-01 dnsmasq[17043]: dnsmasq: unknown interface bond0
+Jan 14 12:38:51 proxmox-01 dnsmasq[17043]: unknown interface bond0
+
+Jan 14 12:42:37 proxmox-01 dnsmasq[17431]: unknown interface bond0.1012
+Jan 14 12:42:37 proxmox-01 dnsmasq[17431]: FAILED to start up
+

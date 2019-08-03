@@ -1,0 +1,19 @@
+file_editor=vi
+bookmark_file=.lynxbkmks.html
+file_sorting_method=BY_FILENAME
+character_set=UNICODE (UTF-8)
+CHARACTER_SET=UNICODE (UTF-8)
+keypad_mode=LINKS_AND_FORM_FIELDS_ARE_NUMBERED
+show_color=never
+vi_keys=on
+emacs_keys=off
+show_dotfiles=off
+select_popups=on
+show_cursor=on
+partial_thres=-1
+lineedit_mode=Default Binding
+dir_list_style=MIXED_STYLE
+user_mode=ADVANCED
+verbose_images=on
+cookie_file=/dev/null
+VIEWER:application/pdf:pdftotext %s -|less

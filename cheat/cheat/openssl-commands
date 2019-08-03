@@ -1,0 +1,65 @@
+openssl req -new -nodes -out csr -keyout key
+	Create CSR and key (-nodes for unencrypted key, better for server use)
+
+openssl req -config $CERTDIR/openssl.cnf -new -nodes -out csr -keyout key
+	Create CSR with conf file that has SAN instructions
+
+openssl req -config $CERTDIR/openssl.cnf -in csr -text
+	Examine CSR for accuracy
+
+openssl ca -config ssl.conf -in csr -out cert
+	act as certificate authority and sign a key 
+	config should specify location of signing key
+
+openssl rsa  -text -noout < private.key.file
+	describe a private key in text form
+
+(see x509 below too)
+
+openssl pkeyutl -inkey key.file -encrypt -in text -out ciphertext
+	encrypt with public key
+
+openssl pkeyutl -inkey key.file -decrypt -in ciphertext -out text
+	decrypt with public key
+
+openssl pkeyutl -inkey key.file -sign -in ciphertext -out text
+	sign with private key
+
+openssl pkeyutl -inkey key.file -verify -in ciphertext -out text
+	verify signature with public key
+
+openssl pkey -in key.pem -out keyout.pem
+	remove the pass phrase on an RSA private key
+
+openssl pkey -in key.pem -text_pub -noout
+	print out the public components of a private key
+	(no output for private parts)
+
+openssl verify -CAfile /tmp/ca.pem /tmp/server.pem
+	check that a cert is good (very terse)
+
+openssl s_client -servername SNI.NAME.TO.USE -connect HOST:port
+	force an SNI connection
+
+openssl s_client -starttls protocol -connect HOST:port
+	use the STARTTLS command first; "protocol" should be
+	the language to speak, eg "smtp", "pop3", "imap", "ftp"
+
+openssl s_client -showcerts -connect HOST:port
+	show the cert for a service on HOST:port
+	(can also work like a ssh-telnet )
+
+openssl pkcs12 -in FOO.pfx -out dev.crt
+	extract PEM cert and chain from pfx "bag" file
+		asks for a PFX (decode) password and a
+		PEM (encode) password
+	"PFX files are PKCS#12 Personal Information Exchange
+	Syntax Standard bundles. They can include arbitrary
+	number of private keys with accompanying X.509
+	certificates and a certificate authority chain (set
+	certificates)."
+
+openssl x509 -noout -text < /tmp/server.pem
+	show the contents of the PEM (including the SAN alternative names)
+
+   > openssl s_client -connect website.com:443 | openssl x509 -noout -text | grep DNS:

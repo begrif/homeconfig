@@ -1,0 +1,77 @@
+command line:
+
+    ansible-playbook \
+    	-i INVENTORYDIR-or-FILE 	\	eg inventory/hosts (ini format)
+    	-l "${HOST}*"			\	wildcard limit or @filename limit
+	-kK -e ansible_ssh_user=$USER 	\	password / user
+	-vvv				\ 	verbose (up to 4)
+	nodes/${env}/${HOST}.yml 	\	yaml to run
+        --options			\	options after yaml fine
+	--tags 'vault'			\	only run plays with 'vault' tag
+
+ansible-playbook -i inventory -l slc-prod-\* -kK -e ansible_ssh_user=$USER -e hosts=slc classes/one-off.yml
+
+ansible -i inventory slc-master -a "reboot" -kK --become
+ansible -i inventory slc-master --limit @file-of-hosts -a "reboot" -kK --become
+
+ansible -i inventory oak-prod-tomcat8 -a "service tomcat8 restart" -kK --become
+ansible -i inventory oak-prod-tomcat6 -a "monit restart all" -kK --become
+ansible -i inventory oak-prod-web -a "monit restart all" -kK --become
+
+
+troubleshooting
+    A run hangs in TASK [setup]		check mounts for RO disks
+    checkout errs in ansible-pull	check for bad cache in ~/ansible ~/.ansible
+
+    Syntax Error while loading YAML.\n\n\nThe error appears to have been in 'True': line 6, column 13, but may\nbe elsewhere in the file depending on the exact syntax problem.\n\n(could not open file to display line)
+    	an included file has a syntax error, probably on line 6 column 13 (but probably *not* "True"), good luck figuring out which file, 2.1 is broken for naming it
+
+# copy a file
+#    as roles/foobar/tasks/main.yml
+#    copy roles/foobar/files/some_path_name to /some/path/name
+- name: this is a copy
+  copy: src=some_path_name dest="/some/path/name" owner=root group=root mode=0644
+
+# alternate way to write that:
+- name: this is a copy
+  copy: src=some_path_name
+    dest: "/some/path/name"
+    owner: root
+    group: root
+    mode: 0644
+
+# use a template
+#    as roles/foobar/tasks/main.yml
+#    use roles/foobar/template/some_path_name.j2 to make /some/path/name.xml
+- name: generate a config
+  template:
+    src: some_path_name.j2
+    dest: "/some/path/name.xml"
+    owner: user
+    group: group
+    mode: 0755
+
+# delete a file (or rather, ensure it doesn't exist)
+# similar synax for deleting a whole directory of files
+#   https://html5hive.org/ansible-quickies-useful-code-snippets/
+- name: ditch old config file
+  file: path=/some/path/previous.xml state=absent
+
+
+# grab an environment variable
+  remote_user: "{{ lookup('env', 'USER') }}"
+
+
+context, with switch hosts setting:
+# Reboot new VMs
+- hosts: newvms
+  vars:
+    ansible_ssh_extra_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+  gather_facts: false
+  remote_user: "{{ lookup('env', 'USER') }}"
+  tasks:
+    - name: reboot
+      command: /sbin/reboot
+      become: true
+      become_user: root
+

@@ -1,0 +1,240 @@
+#!/usr/bin/perl -w
+# Blame Game
+# Find percentages contribution to files by parsing git blame.
+# July 2018
+use strict;
+
+# for file in $(find gitcontents -type f) do
+#     echo "$file"; git blame -l "$file"
+# done | blame-game
+
+my %options;
+
+while(defined($ARGV[0]) and $ARGV[0] =~ /^-/) {
+  my $arg = shift;
+
+  if($arg eq '--help') {
+     print <<HELP_INFO; exit 2;
+Parse 'git blame' for a lot of output:
+
+        find filelist -type f -print -exec git blame -l {} \; -printf '\n' |
+                blame-game
+
+And print summaries of the activity. Eg:
+
+        roles/redis/templates/etc_redis.conf.j2
+        LAST    3.85%  Tom Milkshake
+               11.54%  Greg Mostly
+               84.62%  Heath Youth
+
+Has some basic filtering options:
+    -u USER             user of concern
+    -m 12.34            warn if USER contributed more than 12.34%
+    -l                  warn if USER was last contributor
+    -b DATETIME         warn if last edit (overall or for user) was before DATETIME
+    -a DATETIME         warn if last edit (overall or for user) was after DATETIME
+
+DATETIME format = 'YYYY-MM-DD HH:MM:SS' with truncation okay
+Eg '-b 2001-09-11' for everything before 9/11.
+HELP_INFO
+  }
+
+  if($arg eq '-u' or $arg eq '--user') {
+    $options{filteruser} = shift;
+    next;
+  }
+
+  if($arg eq '-m' or $arg eq '--more') {
+    $options{morethan} = shift;
+    next;
+  }
+
+  if($arg eq '-a' or $arg eq '--after') {
+    $options{after} = shift;
+    next;
+  }
+
+  if($arg eq '-b' or $arg eq '--before') {
+    $options{before} = shift;
+    next;
+  }
+
+  if($arg eq '-l' or $arg eq '--last') {
+    $options{last} = 1;
+    next;
+  }
+}
+
+my $file = undef;
+my %stats;
+
+while(<>) {
+  # 5ef712c3aa991fda3170a7d2af29c1a9ddf78422 (Matt Sniffy    2018-02-13 12:15:53 -0800  87) ###
+  # ^818bf95ce2028d9920124e1bea179a1d284dcd5 (Matt Sniffy 2016-08-16 00:49:37 -0700 27) - name: install vault config
+  # carat seems to indicicate initial repo commit
+  #    https://stackoverflow.com/questions/13105858/
+  # if the line starts with a SHA1 and then has a Full Name and timestamp
+  if (/^\^?[a-f0-9]{7,40} \(([^)]+[a-z])\s*(\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d) /) {
+    my $name = $1;
+    my $when = $2;
+    do_stats_for($when, $name);
+
+    next;
+  }
+
+  # 315f2b570655d745550ff86b4c5c391f2be98a7a roles/icinga2-ansible-web2-config/templates/resource.ini.j2 (Billy Motorman 2016-10-05 17:19:46 -0700  1) [icingaweb_db]$
+  # ^818bf95ce2028d9920124e1bea179a1d284dcd5 roles/common/files/etc_nagios_command-plugins.cfg        (Matt Sniffy 2016-08-16 00:49:37 -0700 271) #
+  # if the line starts with a SHA1 and then has a previous filename
+  # plus a Full Name and timestamp
+  if (/^\^?[a-f0-9]{7,40}\s+\S+\s+\(([^)]+[a-z])\s*(\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d) /) {
+    my $name = $1;
+    my $when = $2;
+    do_stats_for($when, $name);
+
+    next;
+  }
+
+  # check for filename line
+  if(/^[^ ]/) {
+    chomp;
+    if (/\s/ and /\(/ and /\)/) {
+      warn "$0: line $. looks suspicious:\n$_\n";
+      next;
+    }
+
+    $file = $_;
+    show_stats();
+    reset_stats($file);
+  }
+
+}
+show_stats();
+
+exit;
+
+sub reset_stats {
+  %stats = ();
+  $stats{file} = $file;
+  $stats{lines} = 0;
+  @{$stats{users}} = ();
+  %{$stats{u}} = ();
+} # end &reset_stats()
+
+sub show_stats {
+  if(!$stats{lines}) { return; }
+
+  my %percent;
+  my $user;
+  my $perc;
+
+  my $o_user = $options{filteruser};
+  if (defined($o_user)) {
+    if(!exists($stats{u}{$o_user})) {
+      # filtered because that user didn't contribute
+      return;
+    }
+  }
+  my $o_before = $options{before};
+  my $o_after  = $options{after};
+
+  # logic probably needs testing
+  if(defined($o_before)) {
+    if($stats{lastedittime} gt $o_before) {
+      # filtered because that final edit was after the before date
+      return;
+    }
+    if (defined($o_user) and $o_user ne $stats{lastedit}) {
+      # filtered because that final edit not user
+      return;
+    }
+  }
+
+  # logic probably needs testing
+  if(defined($o_after)) {
+    if($stats{lastedittime} lt $o_after) {
+      # filtered because that final edit was before the after date
+      return;
+    }
+    if (defined($o_user) and $o_user ne $stats{lastedit}) {
+      # filtered because that final edit not user
+      return;
+    }
+  }
+
+  if(defined($options{last})) {
+    if (defined($o_user) and $o_user ne $stats{lastedit}) {
+      # filtered because that final edit not user
+      return;
+    }
+  }
+
+  for $user (@{$stats{users}}) {
+    # we return()ed above if lines == 0 so division is safe
+    $perc = 100 * $stats{"user-$user"} / $stats{lines};
+    $percent{$user} = $perc;
+  }
+
+  if(defined($options{morethan})) {
+    if($percent{$user} < $options{morethan}) {
+       # filter because that user didn't edit morethan %
+       return;
+    }
+  }
+
+  print "$stats{file}\n";
+  for $user (sort { $percent{$a} <=> $percent{$b} } (keys %percent)) {
+    my $last = '    ';
+    my $time = '';
+    if($stats{lastedit} eq $user) {
+      $last = 'LAST';
+      $time = $stats{lastedittime};
+    }
+    printf("%s  %6.2f%%  %-32s  %s\n", $last, $percent{$user}, $user, $time);
+  }
+  print "\n";
+} # end &show_stats()
+
+sub do_stats_for {
+  my ($when, $name) = (shift, shift);
+
+  my $lines = $stats{lines};
+  $stats{lines} ++;
+
+  if(exists($stats{"user-$name"})) {
+    $stats{"user-$name"} ++;
+    if($stats{u}{$name} lt $when) {
+      $stats{u}{$name} = $when;
+    }
+  } else {
+    $stats{"user-$name"} = 1;
+    push(@{$stats{users}}, $name);
+    $stats{u}{$name} = $when;
+  }
+
+  if($lines == 0) {
+    $stats{lastedit} = $name;
+    $stats{lastedittime} = $when;
+    return;
+  }
+
+  # check last edit info
+  if(($stats{lastedittime} eq $when) and ($stats{lastedit} eq $name)) {
+    # unchanged
+    return;
+  }
+
+  if($stats{lastedittime} lt $when) {
+    # straight up newer edit
+    $stats{lastedittime} = $when;
+    $stats{lastedit} = $name;
+    return;
+  }
+
+  if($stats{lastedittime} eq $when) {
+    # rare case of same time edits
+    $stats{lastedit} = $name;
+    return;
+  }
+
+} # end do_stats_for()
+__END__

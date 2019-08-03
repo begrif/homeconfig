@@ -1,0 +1,17 @@
+#!/usr/bin/perl
+# Mon Dec 18 19:56:20 EST 2017
+# quickly search duck duck go from command line
+
+use strict;
+use warnings;
+
+my $query = join('+',@ARGV);
+my $base = 'https://duckduckgo.com/lite/';
+
+my $url = $base;
+
+if(defined($query) and $query ne '') {
+  $url .= "?q=$query";
+}
+
+exec('lynx', $url);

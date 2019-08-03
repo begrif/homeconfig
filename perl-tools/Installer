@@ -1,0 +1,32 @@
+#!/bin/sh
+# usage:
+#   Installer file directory [ /explicit/path/to/perl ]
+#
+# edits the #! line to use path default [or named] version of perl
+
+if [ -z "$3" ] ; then
+  perl=$(which perl)
+
+  case "$perl" in */perl) : worked ;; *)
+    echo "$0: could not find system perl"
+    exit 1
+  ;; esac
+else
+  perl="$3"
+fi
+
+if [ ! -f "$1" ] ; then 
+  echo "$0: usage: Installer file directory [perl]; need a file"
+  exit 1
+fi
+
+if [ ! -d "$2" ] ; then 
+  echo "$0: usage: Installer file directory [perl]; need a directory"
+  exit 1
+fi
+
+# regexp to deal with "#! /path" and  "#!/path" as well as 
+# "/usr/bin/perl" vs "/usr/local/bin/perl-14.2" all while preserving -flags
+set -x
+$perl -wpe 'if($. == 1) { s,^#[^/]*/\S+,#!$perl, }BEGIN{ $perl = shift }' \
+	$perl "$1" > "$2/$1" && chmod 755 "$2/$1"

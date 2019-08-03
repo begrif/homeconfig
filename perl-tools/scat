@@ -1,0 +1,422 @@
+#!/usr/bin/perl -w
+#
+# Socket cat, a simpler version of nc (network cat) that does not try
+# to open two way sockets, since they can be a nuissance.
+#
+# 4 April 2000		Benjamin Elijah Griffin
+use strict;
+use Socket;
+use Fcntl;
+use vars qw( $dir $tcpproto $iaddr $paddr $port $host $moved $file $quiet
+             $rate $starttime $accepttime $sleep $secmoved $difftime 
+	     $timeout $hashstr $hashnum $hashcount $lasthash
+	     $VERSION $VERSION_DATE );
+
+$VERSION      = '0.9';
+$VERSION_DATE = '13 Nov 2001';
+
+sub IN()  { 1; }
+sub OUT() { 0; }
+
+sub interval($);
+sub usage($);
+sub findport($);
+sub timeout();
+
+$hashstr = '#';
+$moved   = 0;
+$quiet   = 0;
+$timeout = 0;
+
+while(defined($ARGV[0]) and $ARGV[0] =~ /^-/) {
+  $_ = shift;
+  if (/^-?-([rs])(?:end|ec[ei]+ve)?$/) {
+    if ($1 eq 'r') {
+      $dir = IN;
+      $_ = shift;
+    } else {
+      $dir = OUT;
+      $_ = shift;
+    }
+    if (/:/) {
+      if (/(.+):(.+)$/) {
+	$host = $1;
+	$port = findport($2);
+      } else {
+	die "Can't understand '$_'.\nUse '$0 --help' for usage.\n";
+      }
+    } else {
+      if (/^(.+)$/) {
+	$port = findport($1);
+      } else {
+	die "Can't understand '$_'.\nUse '$0 --help' for usage.\n";
+      }
+    }
+  } # send or receive mode
+  elsif (/^-+t(?:hrottle)?/) {
+    $rate = shift;
+    if ($rate !~ /^\d+$/) {
+      die "Throttle rate '$rate' not understood.\nUse '$0 --help' for usage.\n";
+    }
+    $rate *= 1024;
+    # by specifically importing usleep, we can test to see if it
+    # is implemented.
+    eval 'use Time::HiRes qw( usleep );';
+    if ($@) { 
+      warn "Cannot limit throughput: Can't use Time::HiRes module: $@\n";
+      undef($rate);
+    }
+  } elsif (/^-+(T|timeout)/) {
+    $timeout = shift;
+    if ($timeout !~ /^\d+$/ || $timeout == 0) {
+      die "Timeout '$timeout' not understood.\nUse '$0 --help' for usage.\n";
+    }
+  } elsif (/^-+h(?:ash)?$/) {
+    $hashnum = shift;
+    if ($hashnum !~ /^\d+$/ || $hashnum == 0) {
+      die "Hash rate '$hashnum' not understood.\nUse '$0 --help' for usage.\n";
+    }
+    select((select(STDERR), $| = 1)[0]);
+    $hashnum *= 1024;
+    $lasthash = 0;
+  } elsif (/^-+q(?:uiet$)?/) {
+    $quiet = 1;
+  } elsif (/^-+(H|hashmark)/) {
+    $hashstr = shift;
+  } elsif (/^-+version/i) {
+    print STDERR "$0: socket cat (scat) version $VERSION / $VERSION_DATE\n" .
+    		 "by Benjamin Elijah Griffin / Eli the Bearded\n";
+    exit(0);
+  } elsif (/^-+(\?|help)/) {
+    usage(0);
+  } else {
+    die "Unknown option: $ARGV[0]\nUse '$0 --help' for usage.\n";
+  }
+
+} # while ARGV
+
+if (!defined($dir)) {
+  die "Direction not specified, cannot proceed.\nUse '$0 --help' for usage.\n";
+}
+
+# Cheap hack from perlform.pod for wrapping lines.
+format STDERR =
+^<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< ~~
+$_
+.
+
+
+$tcpproto = getprotobyname('tcp');
+
+if (defined($host)) {
+
+# Client Mode start up {
+  if (!($iaddr = inet_aton($host))) {
+    die "$0: no host $host ($!)\n";
+  }
+
+  $paddr   = sockaddr_in($port, $iaddr);
+  if (!socket(Client, PF_INET, SOCK_STREAM, $tcpproto)) {
+    die "$0: socket: $!\n";
+  }
+  if (!connect(Client, $paddr)) {
+    die "$0: connect: $!\n";
+  }
+
+# } end Client mode start up
+
+} else {
+
+# Server Mode start up {
+  socket(Server, PF_INET, SOCK_STREAM, $tcpproto)     || die "socket: $!";
+  setsockopt(Server, SOL_SOCKET, SO_REUSEADDR,
+				      pack("l", 1))   || die "setsockopt: $!";
+  bind(Server, sockaddr_in($port, INADDR_ANY))        || die "bind: $!";
+  #listen(Server,SOMAXCONN)                           || die "listen: $!";
+  listen(Server, 1)                                   || die "listen: $!";
+
+  if ($timeout) {
+    $SIG{ALRM} = 'main::timeout';
+    alarm($timeout);
+  }
+
+  $paddr = accept(Client,Server);
+
+  if ($timeout) {
+    alarm(0);
+    $SIG{ALRM} = undef;
+  }
+
+  $accepttime = time();
+
+  if(!$quiet) {
+    my($inport,$iaddr) = sockaddr_in($paddr);
+    my $name = (gethostbyaddr($iaddr,AF_INET) or "(dns error: $!)");
+    $_ = "connect from $name [". inet_ntoa($iaddr). "] port $inport"
+    	  . " at " . scalar(localtime) . "\n";
+    write STDERR;
+  }
+
+# } end Server mode start up
+
+}
+
+if ($dir == IN) {
+
+  if ($rate) {
+    $starttime = &Time::HiRes::time;
+    $secmoved = 0;
+  }
+
+  while(sysread(Client, $_, 1024)) {
+    $moved += length($_);
+    if ($hashnum) {
+      use integer;
+      $hashcount = $moved / $hashnum;
+      print STDERR $hashstr x ($hashcount - $lasthash);
+      $lasthash = $hashcount;
+    }
+
+    if ($rate) {
+      $secmoved += length($_);
+      $difftime = &Time::HiRes::time - $starttime;
+      if ($secmoved >= $rate) {
+	 $sleep = 1 - $difftime;
+	 if ($sleep > 0) {
+           &Time::HiRes::sleep($sleep);
+	 }
+	 $starttime = &Time::HiRes::time;
+	 $secmoved  = 0;
+      }
+    }
+
+    print;
+  }
+
+} else {
+
+  my $connect;
+  if (defined($host)) {
+    $connect = "$host:$port";
+  } else {
+    $connect = $port;
+  }
+
+  if (!@ARGV) {
+    unshift(@ARGV, '-');
+  }
+
+  for $file (@ARGV) {
+    if ($file eq '-') {
+      if (!open(IN,'< -')) {
+	warn "Can't open stdin: $!\n";
+	next;
+      }
+    } else {
+      if (!sysopen(IN,$file,O_RDONLY)) {
+	warn "Can't open $file: $!\n";
+	next;
+      }
+    }
+
+    if ($rate) {
+      $starttime = &Time::HiRes::time;
+      $secmoved = 0;
+    }
+
+    while(sysread(IN, $_, 1024)) {
+      my $len = length($_);
+      my $rc = syswrite(Client, $_, $len);
+
+      if (!defined($rc)) {
+        warn "$0: write to $connect error: $!\n";
+	last;
+      }
+
+      if ($rate) {
+	$secmoved += $rc;
+	$difftime = &Time::HiRes::time - $starttime;
+	if ($secmoved >= $rate) {
+	   $sleep = 1 - $difftime;
+	   if ($sleep > 0) {
+             &Time::HiRes::sleep($sleep);
+	   }
+	   $starttime = &Time::HiRes::time;
+	   $secmoved  = 0;
+	}
+      }
+
+      if ($rc != $len) {
+	warn "write to $connect was short ($rc != $len)\n";
+	$moved += $rc;
+      } else {
+	$moved += $len;
+      }
+      if ($hashnum) {
+	use integer;
+	$hashcount = $moved / $hashnum;
+	print STDERR $hashstr x ($hashcount - $lasthash);
+	$lasthash = $hashcount;
+      }
+    } # while IN
+    close IN;
+  } # for $file
+
+} # if/else for $dir
+
+if ($hashnum) {
+  print STDERR "\n";
+}
+
+close Client;
+close Server unless defined($host);
+
+if (!$quiet) {
+  my $ftime;
+  my $ctime;
+  my $thru;
+  my $pftime;
+  my $pctime;
+  my $pthru;
+  my $bigmoved;
+
+  if ($moved > (1024*1024)) {
+    use integer;
+    my $work = $moved;
+    $work /= 1024;
+    if ($work <= (1024*1024)) {
+      $bigmoved = " ($work kilobytes)";
+    } else {
+      $work /= 1024;
+      $bigmoved = " ($work megabytes)";
+    }
+  } else {
+    $bigmoved = '';
+  }
+
+  $ftime  = time() - $^T;
+  $pftime = interval($ftime);
+  if ($accepttime) {
+    $ctime  = time() - $accepttime;
+    $pctime = " (" . interval($ctime) ." connected)";
+  } else {
+    $ctime  = $ftime;
+    $pctime = '';
+  }
+
+  if ($ctime) {
+    $thru  = ($moved/1024) / $ctime;
+    $pthru = sprintf("; %5.2fk/sec", $thru);
+    $pthru =~ s/  / /;
+  } else {
+    $pthru = '';
+  }
+ 
+  $_ = "Moved $moved bytes$bigmoved in $pftime$pctime$pthru\n";
+  write STDERR;
+}
+
+exit(0);
+
+sub interval($) {
+  use integer;
+  my $time = shift;
+  if ($time > 60) {
+    my $min = ($time / 60);
+    my $sec = ($time % 60);
+    if ($min == 1 and $sec == 0) {
+      return "1 minute";
+    } else {
+      return sprintf("%d:%02d minutes", $min, $sec);
+    }
+  } else {
+    if ($time == 1) {
+      return "1 second";
+    } else {
+      return "$time seconds";
+    }
+  }
+} # end &interval
+
+sub timeout() {
+  if (!$quiet) {
+    my $time = interval($timeout);
+    print STDERR
+    	"Timeout after $time while waiting for connection on port $port\n";
+  }
+  exit 1;
+} # end &timeout
+
+sub findport($) {
+  my $portspec = shift;
+  my @portstruct;
+
+  if ($portspec =~ /^\d+$/) {
+    return $portspec;
+  }
+  @portstruct = getservbyname($portspec, 'tcp');
+  if (!defined($portstruct[2])) {
+    die "$0: No port associated with service '$portspec'\n";
+  } else {
+    if (!$quiet) {
+      print STDERR "Service '$portspec' is port $portstruct[2]\n";
+    }
+    return $portstruct[2];
+  }
+} # end &findport
+
+sub usage($) {
+  my $exit = shift;
+  print <<"EOUsage";
+
+$0: usage
+  scat -s [host:]port [options] [file [file ...]]
+  scat -r [host:]port [options]
+
+Modes:
+	-s addr    --send    addr         send to host/port
+	-r addr    --receive addr         receive from host/port
+
+Options:
+	-t num    --throttle num          throttles input to num k/sec
+	-T num    --timeout  num          times out after num secs waiting
+	                                  for a connection (server mode only)
+	-h num    --hash     num          print a hash every num k moved
+	-H string --hashmark string       use string as the hash mark
+	-q        --quiet                 don't print info messages     
+
+Socket cat either cats to or from a TCP port. Ports may be specified
+by name. If no host is specified, it runs in server mode, listening on
+the specified port for the first connection from somewhere else. (Ports
+under 1024 require administrator privledges on some systems.) If a host
+is specified it tries to connect to that port on that host and dies it
+if can't. So when scat is sending to scat on another machine, the
+server mode (no hostname specified) must be started first.
+
+Throttling (requires Time::HiRes be installed) limits the throughput to
+a specified number of kilobytes per second. (Note that kilobits per
+second, not kilobytes, is often used to measure connection speeds.)
+
+If a timeout occurs, scat will exit with status 1. Normal exits have
+status 2.
+
+Examples:
+
+    scat -s alice:1734 plans -t 20
+	    contacts host alice on port 1734 and sends plans, at 20k/s max 
+
+    scat -s 3451 plans
+	    listens on port 3451 and sends plans upon incoming connect
+
+    scat -r alice:5168 -t 10 -h 100
+	    contacts host alice on port 5168 and reads incoming data,
+	    at 10k/s max, printing a hash mark every 100k.
+
+    scat -r 6885
+	    listens on port 6885 and reads incoming data upon incoming connect
+
+EOUsage
+  exit $exit;
+} # end &usage
+
+__END__

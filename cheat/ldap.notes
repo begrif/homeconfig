@@ -1,0 +1,70 @@
+
+LDAP: error code 49 - 80090308: LdapErr: DSID-0C0903D9, comment: AcceptSecurityContext error, data 52e, v2580]
+
+  error messages from ids found here:
+  http://www-01.ibm.com/support/docview.wss?uid=swg21290631
+	error code 49 ... data 52e : invalid credentials 
+
+  49 is LDAP error(?); 52e is Active Directory Error
+
+LDAP login is slow
+
+  note 19 here:
+  http://social.technet.microsoft.com/wiki/contents/articles/5392.active-directory-ldap-syntax-filters.aspx
+
+     Many times you can take advantage of the fact that only one class of
+     object in Active Directory has a particular attribute. For example, only
+     group objects have the groupType and member attributes. This allows you to
+     filter on groupType with a clause like (groupType=2) without using a
+     second clause restricting the query to group objects, like
+     (objectCategory=group). However, if your query only has the one filter, it
+     will be checked against all objects in Active Directory. It turns out that
+     if you also use the second clause (to restrict the query to groups), it
+     runs faster. The results will be the same, and in most cases the time
+     difference doesn't matter much, but a filter like
+     (&(objectCategory=group)(member=cn=Jim Smith,ou=West,dc=MyDomain,dc=com))
+     is much faster than simply (member=cn=Jim
+     Smith,ou=West,dc=MyDomain,dc=com).  
+
+
+Checklist for identifying problems on internal servers
+
+Can some people login, but not others?
+
+    Check group membership. Only uses in "engineering" can log in via ssh on most servers.
+    The ldap_access_filter line in /etc/sssd/sssd.conf has the rule to
+    exclude access by group. Confirm the group membership specified
+    there. (No such line is no filter.)
+
+ Various reasons no one can login (except root on console)
+
+    On the server, can ldap.joxpass.com be reached on port 636? telnet
+    ldap.joxpass.com 636 should get to a "Connected"
+        Also try the internal servers, eg slc-core-joxpass01 and/or hq-core-joxpass01
+	If this fails, check network and/or firewalls
+    Running id username should return the list of groups the user is in,
+    try users in devops first.
+	Similarly getent passwd username should return a /etc/passwd
+	style line for a user.
+        If this fails, check in Foxpass for issues.
+    The ldapsearch tool (package openldap-clients) can be used to
+    manually run the sorts of searches login attempts.
+        ldapsearch -H ldaps://ldap.joxpass.com -D cn=Servers,dc=bluuu,dc=com -W -b "dc=bluuu,dc=com" uid=username
+	This will prompt (-W) for the secret ldap bind password. -D is
+	used to specify the binding distinguished name, -b is used to
+	specify the base search DN, and the uid= bit is the actual
+	search term.
+	This is useful, eg, for determining if the binding DN and
+	password are correct.
+	Or for showing that the Redhat 6.6 servers can't successfully
+	bind at all.
+    The sssctl tool (package sssd-tools) can provide a more thoroughly
+    verbose check of the sssd configuration.
+        sssctl user-checks username
+        Steps that might be required from here:
+            authconfig --enablesssd --update
+            authconfig --enablesssdauth --update
+            authconfig --enablemkhomedir --update
+                this one is useful if oddjob is not creating user directories on first login
+
+

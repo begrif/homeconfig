@@ -1,0 +1,24 @@
+2011:
+  smbclient '\mtebrich-gnpc\share' -A smb.auth -n bgriffin-vpc
+
+2013:
+list services:
+  smbclient -L file13 -g
+
+Servers: GNFILE1, FILE, FILE13
+
+ftp-ish connect:
+  smbclient -A /home/bgriffin/vmware/win-7/smb.auth  '\\file13\Home_Public\'
+
+  failed: cd Japanese*
+  failed: cd 'Japanese PDFs'
+  worked: cd "Japanese PDFs"
+
+auth file format:
+  
+  username = bgriffin
+  password = PASSWORD
+  domain   = grumble
+
+2016
+  smbclient -A /home/bgriffin/vmware/win-7/smb.auth '\\ops-bg-win-401\vmdump\'

@@ -1,0 +1,7 @@
+# Aug 2015
+# man sxhkd
+# simple X hotkey daemon
+
+shift + Print 
+        xwd -root | convert xwd:- $(date +/tmp/xwd-%Y%m%d%H%M%S.png)
+
