@@ -30,6 +30,8 @@
 #       with different buttons. %{A1:left-click}%{A3:right}-click-button%{A}%{A}
 
 clicktool=$HOME/bin/lemonlaunch
+battery_id="$(upower -e 2>/dev/null|grep battery)"
+tempinput=/sys/class/hwmon/hwmon0/temp1_input
 
 # Define the clock
 Clock() {
@@ -41,6 +43,32 @@ Clock() {
 Uptime() {
         UPTIME=$(uptime | sed 's/.*average: //')
         echo -n " $UPTIME "
+}
+
+# System temp
+Temperature() {
+        TEMP=
+        if [ -f $tempinput ] ; then
+                TEMP=$((cat $tempinput ; echo scale=1; echo ./1000 ) | bc |tail -1)
+                TEMP="$TEMP°C"
+        fi
+        echo -n " $TEMP "
+}
+
+# Battery status
+Battery() {
+  state=
+  percentage=
+  BATTERY=
+  case "x$battery_id" in x/org/*)
+    eval $(upower -i $battery_id|perl -wne 'm/(state|percentage):\s+(\S+)/ and print "$1=$2\n"')
+    BATTERY="$percentage"
+    case "x$state" in
+      xdischarging) BATTERY="$BATTERY[-]" ;;
+      xcharging)    BATTERY="$BATTERY[+]" ;;
+    esac
+    echo -n " $BATTERY "
+  ;; esac
 }
 
 # note all literal % doubled for printf
@@ -110,6 +138,12 @@ while true; do
         RightAlign
 
         # Set different colors
+        Blue2
+        Temperature
+        DefaultColors
+
+        Spacer 16
+
         Blue2
         Uptime
         DefaultColors
