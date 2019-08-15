@@ -47,7 +47,7 @@ alias SETTIME="TZ=PST8PDT date +'date %m%d%H%M%Y.%S'"
 alias ping="/bin/ping -c 5"
 
 if [ ! -f "$HOME/.vimrc" -a -d "$HOME" ] ; then
-  echo 'set ai sw=2 history=200 ruler terse nrformats-=octal' >> "$HOME/.vimrc"
+  echo 'set ai sw=2 history=200 ruler terse nrformats-=octal nohlsearch' >> "$HOME/.vimrc"
   echo 'map * "yyy@y' >> "$HOME/.vimrc"
   echo 'map S F r<CR>' >> "$HOME/.vimrc"
   echo 'map = y p' >> "$HOME/.vimrc"
