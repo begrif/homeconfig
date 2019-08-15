@@ -11,6 +11,12 @@ remove mod2 = Num_Lock
 ! add lock = Pause
 ! keysym Pause = Caps_Lock NoSymbol Caps_Lock NoSymbol Caps_Lock
 !
+! Make the right alt key be modifier 2, not so much because I use it,
+! but because some window manager keybindings break when mod2 has
+! no keys assigned to it.
+remove mod1 = Alt_R
+add mod2 = Alt_R
+!
 ! add menu to mod3
 add mod3 = Menu
 keysym Menu = Menu Menu Menu Menu Menu
