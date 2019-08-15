@@ -52,7 +52,7 @@ troubleshooting
     mode: 0755
 
 # delete a file (or rather, ensure it doesn't exist)
-# similar synax for deleting a whole directory of files
+# similar syntax for deleting a whole directory of files
 #   https://html5hive.org/ansible-quickies-useful-code-snippets/
 - name: ditch old config file
   file: path=/some/path/previous.xml state=absent
@@ -74,4 +74,14 @@ context, with switch hosts setting:
       command: /sbin/reboot
       become: true
       become_user: root
+
+- name: Check if /data/foobar directory already exist
+  stat:
+    path: /data/foobar
+  register: foobar_stat
+
+- name: Create initial config if /data/foobar doesn't exist
+  include: deployblank.yml
+  when: foobar_stat.stat.exists == False
+
 

@@ -332,10 +332,15 @@ select status_id, count(item_id) from
 SELECT `ttl`, `type`, `host`, `mx_priority`
    ,SUBSTRING_INDEX(                 `data`, ' ', 1)           AS `data`
    ,SUBSTRING_INDEX( SUBSTRING_INDEX(`data`, ' ', 2), ' ', -1) AS `resp_person`
-   ,SUBSTRING_INDEX( SUBSTRING_INDEX(`data`, ' ', 3), ' ', -1) AS `serial`
-   ,SUBSTRING_INDEX( SUBSTRING_INDEX(`data`, ' ', 4), ' ', -1) AS `refresh`
-   ,SUBSTRING_INDEX( SUBSTRING_INDEX(`data`, ' ', 5), ' ', -1) AS `retry`
-   ,SUBSTRING_INDEX( SUBSTRING_INDEX(`data`, ' ', 6), ' ', -1) AS `expire`
+...
    ,SUBSTRING_INDEX( SUBSTRING_INDEX(`data`, ' ', 7), ' ', -1) AS `minimum`
 FROM `bind` WHERE `zone`='%zone%'
               AND `type`='SOA';
+
+  , IF(type='SOA',SUBSTRING_INDEX(                 `data`, ' ', 1),         `data`) AS `data`
+  , IF(type='SOA',SUBSTRING_INDEX( SUBSTRING_INDEX(`data`, ' ', 2), ' ', -1),NULL ) AS `resp_person`...
+  , IF(type='SOA',SUBSTRING_INDEX( SUBSTRING_INDEX(`data`, ' ', 7), ' ', -1),NULL ) AS `minimum`
+FROM `bind` WHERE `zone`='%zone%'
+              AND (`type`='SOA' OR `type`='NS');
+
+

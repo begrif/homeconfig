@@ -3,27 +3,17 @@ in sshd_config:
 	Banner /var/etc/banner
 
 in /var/etc/banner:
-		  ..++++++++++++++++++++++++++++
-	       ..+++++++++++++++++++++++++++++++
-	   ..+++++++++++++++++++++++++++++++++++
-	 .++++++++++++++++++++++++++++++++++++++
-	++++++++++++++++++++++++++++++++++++++++
-	++++++++++++++++++++++++++++++++++++++++
-	+++++  ++++++  +++++++++++++++  ++++++++
-	+++++  +++++=  +++++++++++++++  ++++++++
-	+++++     ++=  +  +++  +     +      ++++
-	+++++  ++  +=  +  +++  +  ++++  ++  ++++
-	+++++  ++  +=  +  +++  +  ++++  ++  ++++
-	+++++      +=  ++      +  ++++      ++++
-	+++++    ++++  +++..++.+  ++++    +=++++
-	++++++++++++++++++++++++++++++++++++++++
-	++++++++++++++++++++++++++++++++++++++++
-	++++++++++++++++++++++++++++++++++++++++
-	++++++++++++++' TechOps
-	+++++++++++
-	++++++++
-	+++++
-	++,
-	.
+	big ascii art warning
 
-banner comes up before login prompt when SSHing.
+banner comes up before login prompt when SSHing / SCPing. Does not interfere
+with scp like a banner printed in .profile would.
+
+
+~/.ssh/config for jump host
+
+	Host targetHost
+		ProxyCommand ssh -W %h:%p tunnel-host
+
+	Host tunnel-host
+		# any options you might want here
+
