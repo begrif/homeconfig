@@ -1,0 +1,17 @@
+
+vservers = virtual filers = SVM = storage virtual machine
+
+aggregates are assigned to a particular "home" node
+  each aggregate is a collection of physical disks
+  all disks in an aggregate should be matching
+in a failover situation aggregates can be accessed from the paired node
+use disks in groups no smaller than 8 drives to spread load
+
+device names, eg "0C.40.1"
+	network port	0C
+	disk shelf	40
+	bank in shelf	1
+
+export policy permissions under SVM view
+  good idea for "default" policy to be read-only
+  explicitly assign an appropriate policy with a different set of permissions
