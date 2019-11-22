@@ -1,6 +1,5 @@
 
-#NSTALLDIR=$(HOME)/notes
-INSTALLDIR=../notes-tmp
+INSTALLDIR=$(HOME)/notes
 
 install:
 	mkdir -p $(INSTALLDIR)
