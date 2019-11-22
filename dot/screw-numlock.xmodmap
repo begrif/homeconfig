@@ -31,17 +31,23 @@ keysym Caps_Lock = Escape NoSymbol Escape
 ! need to disable (XTerm.shiftFonts: false) / remap (XTerm.vt100.translations)
 ! larger-vt-font() / smaller-vt-font()
 ! use KP_Equal or equal ? turns  out KP_Equal isn't well supported
-keysym KP_Add = KP_Add equal KP_Add XF86_Next_VMode KP_Add XF86_Next_VMode
+! keysym KP_Add = KP_Add equal KP_Add XF86_Next_VMode KP_Add XF86_Next_VMode
 !
-! No numlock, no numlock keypad settings
-keycode  79 = KP_7 KP_7 KP_7 KP_7
-keycode  80 = KP_8 KP_8 KP_8 KP_8
-keycode  81 = KP_9 KP_9 KP_9 KP_9
-keycode  83 = KP_4 KP_4 KP_4 KP_4
-keycode  84 = KP_5 KP_5 KP_5 KP_5
-keycode  85 = KP_6 KP_6 KP_6 KP_6
-keycode  87 = KP_1 KP_1 KP_1 KP_1
-keycode  88 = KP_2 KP_2 KP_2 KP_2
-keycode  89 = KP_3 KP_3 KP_3 KP_3
-keycode  90 = KP_0 KP_0 KP_0 KP_0
-keycode  91 = KP_Decimal KP_Decimal KP_Decimal KP_Decimal
+! No numlock, no numlock keypad settings, and avoid KP_ (at least without
+! modifiers) since some tools try to treat them special.
+keycode  63 = asterisk asterisk KP_Multiply KP_Multiply KP_Multiply KP_Multiply XF86ClearGrab
+keycode  79 = 7 7 KP_7 KP_7
+keycode  80 = 8 8 KP_8 KP_8
+keycode  81 = 9 9 KP_9 KP_9
+keycode  82 = minus plusminus KP_Subtract KP_Subtract KP_Subtract KP_Subtract XF86Prev_VMode
+keycode  83 = 4 4 KP_4 KP_4
+keycode  84 = 5 5 KP_5 KP_5
+keycode  85 = 6 6 KP_6 KP_6
+keycode  86 = plus equal KP_Add KP_Add KP_Add KP_Add XF86Next_VMode
+keycode  87 = 1 1 KP_1 KP_1
+keycode  88 = 2 2 KP_2 KP_2
+keycode  89 = 3 3 KP_3 KP_3
+keycode  90 = 0 0 KP_0 KP_0
+keycode  91 = period BackSpace KP_Decimal KP_Decimal
+keycode 104 = Return KP_Enter KP_Enter
+
