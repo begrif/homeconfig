@@ -62,4 +62,4 @@ openssl pkcs12 -in FOO.pfx -out dev.crt
 openssl x509 -noout -text < /tmp/server.pem
 	show the contents of the PEM (including the SAN alternative names)
 
-   > openssl s_client -connect website.com:443 | openssl x509 -noout -text | grep DNS:
+: | openssl s_client -connect website.com:443 | openssl x509 -noout -text | grep DNS:
