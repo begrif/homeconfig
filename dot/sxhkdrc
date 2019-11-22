@@ -5,3 +5,9 @@
 shift + Print 
         xwd -root | convert xwd:- $(date +/tmp/xwd-%Y%m%d%H%M%S.png)
 
+ctrl + F1
+	xlock -mode coral
+
+# force screen off, but wait a sec for keyboard quiet state
+shift + ctrl + F1
+	sleep 1; xset dpms force off

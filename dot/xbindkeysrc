@@ -1,2 +1,8 @@
 "$HOME/bin/screenshottool -r"
   Shift+Print
+
+"xlock -mode coral"
+  Ctrl+F1
+
+"sleep 1; xset dpms force off"
+  Shift+Ctrl+F1
