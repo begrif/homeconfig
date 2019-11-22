@@ -17,3 +17,18 @@ with scp like a banner printed in .profile would.
 	Host tunnel-host
 		# any options you might want here
 
+The "Host foobarname" need not be an actual hostname, just the name you
+refer to it in a command line. To make it a simple alias you can add
+a "HostName real.name" option. Example:
+
+	Host kvmmaster
+		User kvmuser
+		HostName kvmmanagement.example.com
+		IdentityFile ~/.ssh/kvm_id
+
+Then "ssh kvmmaster" works like "ssh -i ~/.ssh/kvm_id kvmuser@kvmmanagement"
+
+Disable all public key auth
+        PreferredAuthentications=password
+        PubkeyAuthentication=no
+

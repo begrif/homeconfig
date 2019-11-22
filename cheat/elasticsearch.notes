@@ -24,3 +24,5 @@ GET _search
 
 https://github.com/logstash-plugins/logstash-filter-grok
 juno has RT_FLOW_SESSION_CREATE etc
+
+http://okfnlabs.org/blog/2013/07/01/elasticsearch-query-tutorial.html

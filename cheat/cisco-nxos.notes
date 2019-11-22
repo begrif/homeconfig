@@ -1,0 +1,87 @@
+Nexus 3000 Switch
+Cisco Nexus Operating System (NX-OS) Software
+
+https://vwannabe.com/2015/03/07/nx-os-basic-commands-cheat-sheet/
+
+Global Configuration Mode
+        Switch#config
+        Switch(config)#
+
+save the Configuration
+        Switch#copy running-config start-config
+
+Creating VLANs
+        switchA(config)#vlan 10
+        switchA(config-vlan)#name meaningful-name
+        switchA(config-vlan)#exit
+        switchA(config)#
+
+Assign an interface to a vlan
+        switchA#config t
+        switchA(config)#int e3/1
+        switchA(config-if)#switchport
+        switchA(config-if)#switchport mode access
+        switchA(config-if)#switchport access vlan 10
+        switchA(config-if)#end
+        switchA(config)#
+
+Configure ports for routing, Example ports e3/1 and e3/2
+        Nexus7(config-if)# int e3/1
+        Nexus7(config-if)# no switchport
+        Nexus7(config-if)# ip address 172.16.10.1/24
+        Nexus7(config-if)# no shutdown
+        Nexus7(config-if)# int e3/2
+        Nexus7(config-if)# no switchport
+        Nexus7(config-if)# ip address 172.16.20.1/24
+        Nexus7(config-if)# no shutdown
+
+Configure a static route to remote network 192.168.10.0/24
+        Switch#conf t
+        Switch#(config)#ip route 192.168.10.0/24 e3/1 172.16.10.2
+
+VLAN TRUNK
+        Switch#(config)#int e3/28
+        Switch#(config-if)#switchport
+        Switch#(config-if)#switchport mode trunk
+        Switch#(config-if)#switchport trunk allowed vlan add 10
+        Switch#(config-if)#switchport trunk allowed vlan remove 10
+        Switch#(config-if)#end
+
+Changing Native VLAN
+        Switch#(config)#int e3/28
+        Switch#(config-if)#switchport
+        Switch#(config-if)#switchport mode trunk
+        Switch#(config-if)#switchport trunk native vlan 660
+
+Configuring Inter-VLAN Routing
+        feature interface-vlan
+        interface vlan 10
+        ip address 172.16.10.1/24
+        int vlan 20
+        ip address 172.16.20.1/24
+        int vlan 30
+        ip address 172.16.30.1
+
+show spanning-tree
+show spanning-tree vlan 2096
+
+show access-lists
+
+show interface Ethernet 1/48
+
+show running-config     complete config
+show environment        temperature, power, etc
+show system resources   cpu / memory
+show inventory          parts and serial numbers
+show hardware profile status
+
+checkpoint $checkpoint_name
+show checkpoint summary
+show checkpoint $name
+checkpoint $name description $description
+show diff rollback-patch checkpoint $name $running-config
+rollback $running-config checkpoint $name
+
+
+full docs
+https://www.cisco.com/c/en/us/support/switches/nexus-3000-series-switches/products-command-reference-list.html

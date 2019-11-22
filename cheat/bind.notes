@@ -1,0 +1,14 @@
+7-Aug-2019 12:32:36.685 transfer of 'example.com/IN' from 10.20.100.37#53: failed while receiving responses: multiple RRs of singleton type
+
+        This error can be caused by the zone having more than one SOA record,
+        or multiple CNAME records for a given name.
+
+07-Aug-2019 13:31:03.407 transfer of 'example.com/IN' from 10.20.100.37#53: failed while receiving responses: bad zone
+
+        Are there SOA and NS records?
+
+
+
+rndc retransfer example.com
+        force a zone transfer to happen now
+

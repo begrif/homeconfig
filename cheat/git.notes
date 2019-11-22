@@ -31,6 +31,7 @@ git diff --no-color master	show diffs in the current branch, relative to
 git diff filename		show diffs *prior to* "git add"
 git diff --cached filename	show diffs *after* "git add"
 git diff HEAD~1 filename	show diffs *after* "git commit"
+git diff BranchA...BranchB -- file	show diffs of one file between branches
 
 git fetch && git pull		(or "git pull origin master") "fast forward"
 
@@ -60,6 +61,15 @@ make a local clone of a public project
 	git remote rename origin upstream
 	git remote add origin git@slc-core-github01.bluuu.com:foo/bar.git
 	git push --all origin
+
+move a project to a different origin
+	git clone https://github.com/foo/bar
+	for branch in $(git branch  -a |grep remotes | grep -v /master); do
+	  git checkout master; git checkout -b ${branch##*/} $branch
+	done
+	git remote rm origin
+	git remote add origin git@slc-core-github01.blurb.com:foo/bar.git
+	git push --all -u origin
 
 ------
 https://stackoverflow.com/questions/372506/how-can-i-search-git-branches-for-a-file-or-directory
