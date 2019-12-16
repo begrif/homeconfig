@@ -9,5 +9,8 @@ ctrl + F1
 	xlock -mode coral
 
 # force screen off, but wait a sec for keyboard quiet state
-shift + ctrl + F1
+ctrl + F2
 	sleep 1; xset dpms force off
+
+alt + F3
+	$HOME/bin/toggle-elan-touchpad

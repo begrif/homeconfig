@@ -5,4 +5,7 @@
   Ctrl+F1
 
 "sleep 1; xset dpms force off"
-  Shift+Ctrl+F1
+  Ctrl+F2
+
+"$HOME/bin/toggle-elan-touchpad"
+  Alt+F3
