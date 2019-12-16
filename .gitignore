@@ -1,3 +1,7 @@
 *.o
 *.swp
 core
+checkutf8/checkutf8
+checkutf8/checkascii
+checkutf8/check8859
+encodetool/encodetool

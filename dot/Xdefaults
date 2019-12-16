@@ -29,11 +29,8 @@ XTerm.vt100.translations: #override                                    \n\
  Shift~Ctrl<Btn2Up>:  insert-selection(CLIPBOARD, CUT_BUFFER1)         \n\
  Shift<BtnUp>:        select-end(CLIPBOARD, CUT_BUFFER1)               \n\
  Shift Ctrl <KeyPress> Insert: insert-selection(CLIPBOARD, CUT_BUFFER1)\n\
- <Key>F1: string("$RC") string(0x0d)                                   \n\
- <Key>F2: string("#h") string(0x0d)                                    \n\
- <Key>F3: string("#M") string(0x0d)                                    \n\
- <Key>F4: string("#J")                                                 \n\
- Shift <Key>KP_Add: string("=")                                        \n\
+ Alt<Key>F1: string("$RC") string(0x0d)                                \n
+
 
 ! this did nothing:
 ! vi-button should issue a sequence to move the cursor to the line clicked on
