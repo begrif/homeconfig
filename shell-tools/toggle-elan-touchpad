@@ -1,0 +1,41 @@
+#!/bin/sh
+# A toggle tool for the touchpad, intended to be run via keyboard
+# shortcut. Generally I prefer the mouse, and keep the touchpad
+# disabled, but sometimes the mouse isn't handy.
+
+device='ELAN1201:00 04F3:3054 Touchpad'
+property='Device Enabled'
+
+# 
+getstate() {
+  verbosestate=$(xinput --list-props "$device" | grep "$property")
+  case "X${verbosestate}X" in
+         XX) state="no-answer" ;;
+    # something(*) colon tab (':	') zero/one (0 1) end of line (X)
+    # *':	'1X) state="1" ;;
+    # *':	'0X) state="0" ;;
+          *) # try to parse out to be more general; note explicit tab in there
+	     state="${verbosestate##*	}"
+	     ;;
+  esac
+  echo "$state"
+}
+
+# takes a value and sets it; "Device Enabled" accepts 0 or 1, but other
+# properties have other rules
+setstate() {
+  xinput --set-prop "$device" "$property" "$1"
+}
+
+touchpadstate=$(getstate)
+if [ "$touchpadstate" = 1 ] ; then
+  setstate 0
+  exit
+fi
+if [ "$touchpadstate" = 0 ] ; then
+  setstate 1
+  exit
+fi
+
+echo "$device in unexpected state: $touchpadstate"
+exit 1
