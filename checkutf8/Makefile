@@ -1,21 +1,23 @@
 
 PREFIX = $(HOME)
 CC=gcc
-POD2MAN=/usr/local/bin/pod2man-5.24.3
+#POD2MAN=/usr/local/bin/pod2man-5.24.3
+POD2MAN=pod2man
 CPPFLAGS=-D_BSD_SOURCE 
 
-CHECKPROGS = checkutf8 check8859 checkascii
+MAIN_PROG = checkutf8
+CHECKPROGS = $(MAIN_PROG) check8859 checkascii
 CHECKPROGS_SRCS = checkutf8.c utf-8.c
 CHECKPROGS_OBJS=$(CHECKPROGS_SRCS:%.c=%.o)
 TESTPROG = utf8test
 ALL_PROG = $(CHECKPROGS) $(TESTPROG)
 
-GENERATED_DOCS = checkutf8.1
+GENERATED_DOCS = $(MAIN_PROG).1
 MAN = $(GENERATED_DOCS)
 
 default: all
 
-all: $(PROG) $(CHECKPROGS)
+all: $(CHECKPROGS)
 
 # limited test suite
 test: $(TESTPROG)
@@ -30,15 +32,15 @@ install: $(PROG) $(CHECKPROGS) $(MAN)
 $(PROG): $(OBJS)
 	$(CC) $(LDFLAGS) $(CFLAGS) -o $@ $(OBJS) $(LIBS)
  
-checkutf8: $(CHECKPROGS_OBJS)
+$(MAIN_PROG): $(CHECKPROGS_OBJS)
 	rm -f $(CHECKPROGS)
 	$(CC) $(LDFLAGS) $(CFLAGS) -o $@ $(CHECKPROGS_OBJS) $(LIBS)
 
-check8859: checkutf8
-	ln -s $> $@
+check8859: $(MAIN_PROG)
+	ln -s $(MAIN_PROG) $@
 
-checkascii: checkutf8
-	ln -s $> $@
+checkascii: $(MAIN_PROG)
+	ln -s $(MAIN_PROG) $@
 
 
 .c.o:
