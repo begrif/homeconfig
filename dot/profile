@@ -13,17 +13,18 @@ addpath () {
   esac
 }
 
-for dir in $HOME/bin ; do
-  if [ -d $dir ] ; then
-    addpath $dir
+for p_dir in $HOME/bin ; do
+  if [ -d $p_dir ] ; then
+    addpath $p_dir
   fi
 done
 
-for dir in $HOME/usr/bin ; do
-  if [ -d $dir ] ; then
-    addpath $dir end
+for dir in $HOME/usr/bin $HOME/.cargo/bin ; do
+  if [ -d $p_dir ] ; then
+    addpath $p_dir end
   fi
 done
+unset p_dir
 
 case "$-" in *i*) # only run on interactive shells
 
@@ -44,7 +45,7 @@ case "$-" in *i*) # only run on interactive shells
   fi
   if whence tmux >/dev/null; then
     printf "tmux: "
-    tmux list-sessions
+    tmux list-sessions 2>/dev/null || echo
     alias TRD="tmux attach -d || tmux new-session "
   fi
 
@@ -68,3 +69,4 @@ case "$-" in *i*) # only run on interactive shells
   set -o vi
 
 ;; esac # interactive shell wrapper
+
