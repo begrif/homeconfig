@@ -1,0 +1,35 @@
+db                                      show db name
+use NAME                                switch to db NAME
+db.TABLE.find( {} ).pretty();           show full contents of TABLE
+db.TABLE.find( {} ).count();            count things in TABLE
+
+db.inventory.find( { qty: 0 } );        show stuff in inventory with qty field set to 0
+db.inventory.find( { qty: 0, status: "D" } );   qty 0 AND status D
+db.inventory.find( { "size.uom": "in" } )       "size": { "uom": "in" }
+db.inventory.find( { "size.h": { $gt: 10 } } )  "size": { "h": values over 10 }
+     -> https://docs.mongodb.com/manual/reference/operator/query/
+
+db.inventory.find( { size: { h: 14, w: 21, uom: "cm" } } )      multiple things in size ANDed
+db.inventory.find( { tags: "red" } )            search for red in tags array
+db.inventory.find( { "tags.0": "red" } )        search for red as first in tags array
+db.inventory.find( { tags: [ "red", "blank" ] } )       exact array search (order and contents)
+db.inventory.find( { tags: "red",  tags: "blank" } )    ANDed fields from array
+
+db.inventory.find( { }, { item: 1, status: 1 } );       full TABLE, limited fields
+db.inventory.find( { tags: "blank" }, { _id: 0, item: 1, status: 1 } );         slice and dice, with default _id field surpressed
+
+db.inventory.insertMany([               insert multiple "documents"
+   { item: "journal", qty: 25, ... },
+   { ... }
+   ]);
+
+
+db.program.getIndexes()
+db.program.createIndex({'key':1});
+
+show databases
+
+show collections
+   supposedly similar to:
+     db.runCommand({ listCollections: 1, authorizedCollections: true, nameOnly: true })
+   but that gives a lot more detail

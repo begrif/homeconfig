@@ -1,0 +1,4 @@
+import "github.com/davecgh/go-spew/spew"
+spew.Dump(myVar1, myVar2, ...)
+        -> just like Data::Dumper in perl
+

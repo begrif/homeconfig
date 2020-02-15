@@ -1,0 +1,7 @@
+Example queries:
+
+deployment: "webapps-app" AND container: "mongos" AND (message: 1???ms OR message: 2???ms OR message: 3???ms OR message: 4???ms OR message: 5???ms OR message: 1????ms)
+   looking for connect times of 1.000 to 19.000 milliseconds
+
+....  AND message: 1[2,3,4,5,6,7,8,9]??ms
+   over 1199ms less than 2000ms
