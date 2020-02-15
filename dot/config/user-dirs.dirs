@@ -1,11 +1,12 @@
 # Format is XDG_xxx_DIR="$HOME/yyy", where yyy is a shell-escaped
 # homedir-relative path, or XDG_xxx_DIR="/yyy", where /yyy is an
 # absolute path. No other format is supported.
-XDG_DESKTOP_DIR="$HOME/downloads"
+XDG_DESKTOP_DIR="$HOME/.empty"
 XDG_DOWNLOAD_DIR="$HOME/downloads"
-XDG_TEMPLATES_DIR="$HOME/tmp"
+XDG_TEMPLATES_DIR="$HOME/work"
 XDG_PUBLICSHARE_DIR="$HOME/tmp"
 XDG_DOCUMENTS_DIR="$HOME/notes"
 XDG_MUSIC_DIR="$HOME/tmp"
 XDG_PICTURES_DIR="$HOME/images"
 XDG_VIDEOS_DIR="$HOME/video"
+# XDG_DATA_DIRS set in /etc/profile/apps-bin-path.sh; no $HOME component
