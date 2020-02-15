@@ -20,6 +20,13 @@
   Netbsd's version.
 
 
+* `clone`
+  A `git clone` wrapper that lets me do `clone this that theother` and
+  have $WORK versions download if I don't have a personal fork of this,
+  that, or theother. But if I do have a personal fork, after clone the
+  upstream will be set.
+
+
 * `edithosts`
   Quickly delete a line from ~/.ssh/known_hosts
 
