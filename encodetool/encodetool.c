@@ -163,6 +163,11 @@ decode_amp(char *str)
   long int out;
   char *endp, unit;
 
+  if (str[1] != '#') {
+    putchar(str[0]);
+    return 0;
+  }
+
   while(str[len] != ';') {
     if(!str[len]) {
       putchar(str[0]);
@@ -171,12 +176,12 @@ decode_amp(char *str)
     len ++;
   }
 
-  if(str[1] == 'x') {
+  if((str[2] == 'x') || (str[2] == 'X')) {
     /* hex */
-    out = strtol(&(str[2]), &endp, 16);
-  } else if(isdigit(str[1])) {
+    out = strtol(&(str[3]), &endp, 16);
+  } else if(isdigit(str[2])) {
     /* decimal */
-    out = strtol(&(str[1]), &endp, 10);
+    out = strtol(&(str[2]), &endp, 10);
   } else {
     /* named, unhandled */
     endp = str;
