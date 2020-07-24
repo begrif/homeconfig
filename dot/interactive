@@ -9,7 +9,7 @@ unalias egrep
 unalias fgrep 
 
 alias nice="nice " # expand aliases
-alias make="make " # expand aliases
+#lias make="make " # expand aliases
 
 alias r="fc -e -" # historical magic
 alias v="fc -e - vi" # historical magic
@@ -20,11 +20,14 @@ alias L="lynx --force_html"
 alias lynx="lynx -useragent=Lynx/2.8.8rel.2 -image_links -noreferer -accept_all_cookies -cookie_save_file=/dev/null"
 alias jt="jpegtran -copy none"
 alias rot="tr A-Za-z N-ZA-Mn-za-m"
+alias pfd="realpath -m"
 alias PING='alias ping="/bin/ping -c 5"'
+# get recursive diff to ignore .git .swp, etc
+alias rdiff="diff -r -X $HOME/.diff-exclude"
 
 # normalize across distros
-#alias package_search="apt-cache search"
-alias package_search="yum search"
+alias package_search="apt-cache search"
+#alias package_search="yum search"
 
 # poor man's ntp: run SETTIME then cut and paste the output on another
 # system (with sudo/root shell)
@@ -37,7 +40,7 @@ export PS1 PS2
 
 tty=`tty`
 if [ "$TERM"x = 'xtermx' ] ; then
-  xtitle $tty
+  xtitle $tty 2>/dev/null
 fi
 HISTFILE=$HOME/.kshrc_history.${tty##*/}
 
@@ -57,6 +60,15 @@ function frm {
   else
     /usr/local/bin/frm | $prog $@
   fi
+}
+
+# for estimating how interesting a directory is: more file, probably more interesting
+# but don't include .git
+fcount() {
+  for dir ; do 
+    printf "%s: " "$dir"
+    find "$dir" -name .git -prune -o -type f -print 2>/dev/null | wc -l
+  done
 }
 
 sshlist() {

@@ -5,3 +5,9 @@
         helper = cache --timeout=7200
 [color]
         diff = false
+[alias]
+	last = log -1 HEAD
+	UNCOMMIT = reset HEAD~
+	RESYNC = pull --rebase upstream master
+[core]
+	excludesfile = ~/.gitignore

@@ -1,0 +1,12 @@
+doc: https://api.slack.com/methods/chat.postEphemeral
+method: POST https://slack.com/api/chat.postEphemeral
+Example:
+        POST https://slack.com/api/chat.postMessage
+        Content-type: application/json
+        Authorization: Bearer YOUR_BOTS_TOKEN
+            {
+            "text": "Hello <@UA8RXUPSP>! Knock, knock.",
+            "channel": "CBR2V3XEX"
+            }
+
+

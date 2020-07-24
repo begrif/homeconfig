@@ -55,7 +55,7 @@ XTerm.VT100.titeInhibit:  true
 
 ! Uncomment this to turn off color mode in your xterms
 XTerm.VT100*dynamicColors:  on
-XTerm*saveLines:        5000
+XTerm*saveLines:        10000
 XTerm*reverseWrap:      true
 XTerm*appkeypadDefault: false
 XTerm*cutNewline:       false
@@ -67,6 +67,11 @@ XTerm*utf8:             1
 ! this defines what is a "word" for double-click purposes, I include
 ! : and / so that "https://fooo.baar/jdjd?this=that" will select the
 ! "https://fooo.baar/jdjd" bit on a double-click
+! all letters and numbers start out in class 48 (zero), override these
+! values:
+!       45-47   -./     :48 treat like 0
+!       58      :       :48 treat like 0
+!       64      @       :48 treat like 0
 XTerm*charClass:         45-47:48,58:48,64:48
 ! Use colors for bold? reverse? underline?
 XTerm*colorBDMode:      false

@@ -1,0 +1,37 @@
+kubectl get namespaces                          
+
+kubectl --namespace SPACENAME get pods [ -o wide ]
+kubectl  -n         SPACENAME get pods [ -o wide ]
+kubectl  -n         SPACENAME get nodes
+kubectl  -n         SPACENAME get deployments
+
+kubectl  -v 3  REST.OF.COMMAND                  verbosity level 3
+kubectl --v=3  REST.OF.COMMAND                  verbosity level 3
+
+kubectl create -f - < ./pod.json                JSON or YAML supported for pod
+kubectl create -f     ./pod.yaml                creation specifications
+kubectl delete -f - < ./pod.yaml                can use manifest for deletes, too
+
+kubectl create deployment kubernetes-bootcamp --image=gcr.io/google-samples/kubernetes-bootcamp:v1
+
+kubectl -n SPACENAME edit deployment DEPNAME         # see current config of something
+
+kubectl -n SPACENAME scale --replicas=2 -f deployments/manifest         rescale to 2
+
+# just show pod names (-o : output format)
+# template help: http://golang.org/pkg/text/template/#pkg-overview
+kubectl -n training get pods -o go-template --template '{{range .items}}{{.metadata.name}}{{"\n"}}{{end}}')
+
+# note selector; and different sort of output reformat, here all names on one line
+kubectl -n training get pods --selector=app=busybox-tmpl --output=jsonpath={.items..metadata.name}
+
+label vs annotation:
+    labels are meant for selection operations and have constrained values
+    annotations are meant for external processes and have unstructured values
+
+# define a cluster
+kubectl config set-cluster CLUSTERNAME --server=https://HOSTNAME --certificate-authority="${HOME}/.kube/ca.pem" --embed-certs=true
+# and a context in that cluster
+kubectl config set-context CONTEXTNAME --cluster=CLUSTERNAME --user="${USER}" --namespace=NAMESPACE
+# then set default context
+kubectl config use-context CONTEXTNAME

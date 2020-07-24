@@ -6,6 +6,11 @@ git checkout -b branch-name	create AND switch to branch
 git checkout -- path/to/file	revert file to last commited version
 git branch			list branches (* marks current)
 
+git log                         show commit messages
+git log -1 HEAD                 show just last commit
+# aliased as "git last"
+git log -- PATH/TO/FILE         show just commits for FILE (including deleted)
+
 git mv oldname newname
 git rm removefile
 
@@ -72,6 +77,23 @@ move a project to a different origin
 	git push --all -u origin
 
 ------
+using format-patch for creating and using patches:
+
+use "git log" to examine history
+use "git format-patch COMMITID" to create patch files for each commit
+        since (but not including) COMMITID
+these patches can be mailed somewhere for workflows that use git-by-mail
+        verify mailer doesn't mangle patch mail though, as some do
+use "git am 0001-PATCH [ 0002-PATCH ...] to apply all patches
+        each will be applied and committed using the patch contents
+
+or...
+use "git checkout COMMITID" go back to that earlier time
+create a new branch there "git checkout -b NEWBRANCH"
+"for patch in 00*.patch; do patch -p 1 < $patch; done"
+        apply all patches without commits
+"git add" / "git commit" to make it a new single commit change
+------
 https://stackoverflow.com/questions/372506/how-can-i-search-git-branches-for-a-file-or-directory
 	git log --all -- path/to/file
 	git log --all -- '**/file'
@@ -85,6 +107,7 @@ https://stackoverflow.com/questions/372506/how-can-i-search-git-branches-for-a-f
 https://stackoverflow.com/questions/927358/how-to-undo-the-last-commits-in-git
     $ git commit -m "Something terribly misguided"              (1)
     $ git reset HEAD~                                           (2)
+    # aliased as "git UNCOMMIT"
          << edit files as necessary >>                          (3)
     $ git add ...                                               (4)
     $ git commit -c ORIG_HEAD                                   (5)
@@ -117,7 +140,7 @@ git checkout destinationbranch
 git checkout sourcebranch file/to/merge
 
 merge *commits* to a different branch
-git cherrypick somethingsomething
+git cherry-pick somethingsomething
 ------
 General 5 step contribution method
 1   Fork it

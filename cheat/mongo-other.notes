@@ -1,0 +1,28 @@
+
+mongod --config CONF
+        db program
+        runs in foreground
+        silent
+
+mongos --config CONF
+        shard front end
+        runs in foreground
+        verbose output
+
+mongo --host HOSTNAME:PORT
+        mongo query shell
+        port cannot be a name
+        connect to mongos for a shard
+
+long mongotop command line:
+mongotop [ INTERNVAL ] --host mongodb0.example.com --port 27017 -u user -p password --authenticationDatabase admin [additional options]
+        connects to a mongod, not a mongos
+        shows top N most active database.collection sets
+
+mongostat [ INTERVAL ] --host HOSTNAME:PORT[,HOSTNAME...] 
+        vmstat-like program
+        connects to one or more mongod or mongos
+        shows stats like inserts/updates/deletes/vsize/res/net usage
+
+  mongostat --host MONGOS --port POST --discover
+        shows stats on all the members of a replica set or shard cluster

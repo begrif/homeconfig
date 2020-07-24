@@ -1,0 +1,147 @@
+#!/bin/sh
+# quick downloader for company projects
+# used like:
+#       clone puppet dns-zones
+#    -> will look for personal THEN organization repos, getting first found
+#       * personal repos will have upstream set to org one
+#       * org repos will have a directory name prefix
+#
+# used like:
+#       clone git@github.com:$personal/foo
+#    -> will clone personal WITHOUT setting up upstream
+#
+# used like:
+#       clone git@github.com:$organiation/bar
+#    -> will clone organizational with directory prefix AND
+#       personal with upstream setting up
+#
+# used like:
+#       clone https://github.com/someoneelse/qux
+#    -> will clone that, with an other source directory prefix
+#
+# General notes
+# 
+# * bare repo names work much different than full repo specs
+# 
+# * git@ and https:// repo spec forms are both interchangible
+#
+# * renames directories of non-forked repos to highlight origin
+#       using M- for company upstreams (M for Main)
+#       using D- for third party upstreams (D for Different)
+
+organization=__fill_in__
+personal=begrif
+
+orgprefix=M-
+otherprefix=D-
+
+# for testing
+# git="echo git"
+git=git
+
+cd $HOME/work || die
+
+findname() {
+  nodotgit="${1%.git}"
+  justrepo="${nodotgit##*/}"
+  echo "$justrepo"
+}
+
+getone() {
+  $git clone "$1" "$2"
+}
+
+setupstream() {
+  ( cd "$2" && $git remote add upstream "$1" && echo "Set upstream in $2." )
+}
+
+for package ; do
+
+  remote=
+  main=
+  mine=
+  other=
+
+  case "$package" in
+        https:*|git@*) # definitely a full package name
+                      remote="$package"
+                      ;;
+
+        *@*/*|*:*/*) # looks like a full package
+                      remote="$package"
+                      ;;
+  esac
+
+  # -n non-zero string length
+  if [ -n "$remote" ] ; then
+      usedir=$(findname "$remote")
+      case "$remote" in
+                *$organization*) mine=$(perl -wle '$_=shift;
+                                                  '"s/$organization/$personal/;"'
+                                                   print' $remote)
+                                 main="$remote"
+                                 # will download $main, $mine, and set upstream
+                             ;;
+
+                *$personal*) mine="$remote"
+                             echo "WARNING: no default upstream for $remote"
+                             # will download $mine, never try $main, never
+                             # set upstream
+                             ;;
+
+                *) other="$remote"
+                   # will download $upstream ignore mine and main
+                   echo "WARNING: no personal for $remote"
+                   ;;
+
+      esac
+
+      if [ -n "$main"     ] ; then getone "$main"    "$orgprefix$usedir" ; fi
+      if [ -n "$mine"     ] ; then getone "$mine"              "$usedir" ; fi
+      if [ -n "$other"    ] ; then getone "$other" "$otherprefix$usedir" ; fi
+
+      if [ -n "$main" -a -n "$mine" ] ; then setupstream "$main" "$usedir" ; fi
+  else
+      main="git@github.com:$organization/$package.git"
+      mine="git@github.com:$personal/$package.git"
+
+      echo "Trying personal version"
+      getone "$mine" "$package"
+      if [ -d "$package" ] ; then 
+        setupstream "$main" "$package"
+      else 
+        echo "Trying org version"
+        getone "$main" "$orgprefix$package"
+      fi
+  fi
+  
+done
+
+
+exit
+-------------------------------------------------------------------
+# old way
+
+for package ; do
+  if [ -d "$package" ] ; then
+    echo "Already have $package."
+  else
+    echo "starting $personal/$package"
+    if git clone "$mine" ; then
+      echo "Cloned personal fork successfully."
+      ( cd "$package" && git remote add upstream "$main" && echo "Set upstream." )
+    else
+      echo "No personal fork."
+      if [ -d "$orgprefix$package" ] ; then
+        echo "Already have $package."
+      else
+        if git clone "$main" ; then
+          mv $package "$orgprefix$package"
+          echo "Cloned corporate main project successfully: $orgprefix$package"
+        fi
+      fi
+    fi
+  fi
+  echo
+done
+

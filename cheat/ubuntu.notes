@@ -1,4 +1,64 @@
-
+  bionic=18.04  # debian buster 10
+  artful=17.10  # debian stretch 9
+   zesty=17.04  # debian stretch 9
+ yakkety=16.10  # debian stretch 9
+  xenial=16.04  # debian stretch 9
+    wily=15.10  # debian jessie 8
+   vivid=15.04  # debian jessie 8
+  utopic=14.10  # debian jessie 8
+  trusty=14.04  # debian jessie 8
+   saucy=13.10  # debian wheezy 7
+  raring=13.04  # debian wheezy 7
+ quantal=12.10  # debian wheezy 7
+ precise=12.04  # debian wheezy 7
+ oneiric=11.10  # debian wheezy 7
+   natty=11.04  # debian squeeze 6
+maverick=10.10  # debian squeeze 6
+   lucid=10.04  # debian squeeze 6
 
 apt list --upgradable
+apt list --installed
 
+apg-get remove PACKAGE                  regular uninstall
+apg-get purge  PACKAGE                  thorough uninstall
+
+dpkg -S /path/to/file                   what package provided a file
+or install and use "apt-file"
+apt-file search PATHSUBSTRING           will also seach uninstalled packages
+
+apt-file list PACKAGE                   list files installed by package
+
+dpkg-deb -c $PACKAGE.deb                list files in deb
+dpkg-deb -x $PACKAGE.deb DIR            extract files from deb to DIR
+
+# pin a package
+echo "PACKAGE-NAME hold" | sudo dpkg --set-selections
+
+[systemd versions]
+  service NAME [ stop | start | restart | status | etc ]
+  -> systemctl [ stop | start | restart | status | etc ] NAME.service
+
+  systemctl [ --all ]
+    show active (or all) services (wide output, auto-paged)
+
+  /lib/systemd/... has much config
+
+https://github.com/jordansissel/fpm     easy package builder, eg:
+    # build a directory of files to include below $PWD to be installed
+    # to /usr/SUBDIR/FILE
+    fpm -s dir \
+            -t deb \
+            --iteration 1~bionic \
+            -C $PWD/ \
+            -a amd64 \
+            --vendor EMAIL@ADDRESS \
+            --maintainer EMAIL@ADDRESS \
+            --description "One-liner about package" \
+            --url https://github.com/... \
+            --prefix /usr \
+            -n package-name \
+            -v VERSION_NUM \
+            --deb-user root \
+            --deb-group root 
+
+     # test output with dpkg-deb (see earlier)

@@ -50,3 +50,6 @@ set pastetoggle=<Insert>
 " remove octal style counting from <ctrl-a>/<ctrl-x>: zero padded decimal
 " is safe again
 set nrformats-=octal
+"
+" use % with angle brackets, too
+set matchpairs=(:),{:},[:],<:>
