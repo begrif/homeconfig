@@ -68,7 +68,7 @@ help(char *name) {
   puts("   -a   --aggressive    when encoding, do an aggressive job, encode it all");
   puts("   -%   --url           url-style : \"%3D\"   or \"%3d\"   for input '='");
   puts("   -=   --mime          mime-style: \"=3D\"   or \"=3d\"   for input '='");
-  puts("   -&   --html          html-style: \"&x3D;\" or \"&x3d;\" for input '='");
+  puts("   -&   --html          html-style: \"&#x3D;\" or \"&#x3d;\" for input '='");
   puts("   -s   --space         in output, separate args with a space");
   puts("   -n   --newline       in output, separate args with a newline");
   puts("   -0   --nosep         in output, don't separate args");
@@ -148,7 +148,7 @@ hexpair(char a, char b)
 
 /* Decode & encoded value; this is tricky since & encoded is both longer
  * than ones and can have multiple bytes in one & block, so the length
- * isn't even contant. And might as well decode decimal version, too.
+ * isn't even constant. And might as well decode decimal version, too.
  *
  * The string should start out at the initial &. Prints (to stdout) the
  * decoded value, or just "&" if not a valid sequence.
@@ -272,8 +272,8 @@ main(int ac, char**av)
   /* must be ENCODING if here */
 
   if(HTML == style) {
-    /* produce a format like "&x%X;" */
-    sprintf(format, "&x%%%c;",  (LOWER == encodecase)? 'x' : 'X');
+    /* produce a format like "&#x%X;" */
+    sprintf(format, "&#x%%%c;",  (LOWER == encodecase)? 'x' : 'X');
   } else if (MIME == style) {
     /* produce a format like "=%x" */
     sprintf(format, "=%%%c",    (LOWER == encodecase)? 'x' : 'X');
